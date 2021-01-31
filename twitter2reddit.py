@@ -136,7 +136,7 @@ class ImgurAlbum:
 		return self.url
 
 class ImgurImages:
-	def __init__(self, tweet, album=None):
+	def __init__(self, tweet, number, album=None):
 		self.name = tweet.name
 		self.screen_name = tweet.screen_name
 		self.body = tweet.text
@@ -144,6 +144,7 @@ class ImgurImages:
 		self.date = tweet.date
 		self.media = tweet.media
 		self.album = album.deletehash if album else None
+		self.number = number
 		self.imgs = []
 		logging.debug('Generated new imgur images from tweet {} and putting it in album {}'.format(tweet.sid, self.album))
 
@@ -152,18 +153,17 @@ class ImgurImages:
 		title = None
 		desc = None
 		if idx >= 0:
-			title = '#{num} - {body} - @{screen_name} - {idx} of {total}'.format(screen_name=self.screen_name, body=self.body, idx=idx+1, total=len(self.media))
-			desc = '#{num} {name} (@{screen_name}) - {idx} of {total}\n{body}\n\nCreated: {date}\t{link}'.format(name=self.name, screen_name=self.screen_name, body=self.body, link=self.url, date=self.date, idx=idx+1, total=len(self.media))
+			title = '#{num} - {body} - @{screen_name} - {idx} of {total}'.format(num=self.number, screen_name=self.screen_name, body=self.body, idx=idx+1, total=len(self.media))
+			desc = '{name} (@{screen_name}) - {idx} of {total}\n#{num} - {body}\n\nCreated: {date}\t{link}'.format(name=self.name, screen_name=self.screen_name, body=self.body, link=self.url, date=self.date, idx=idx+1, total=len(self.media), num=self.number)
 		else:
-			title = '#{num} - {body} - @{screen_name}'.format(screen_name=self.screen_name, body=self.body)
-			desc = '{name} (@{screen_name})\n{body}\n\nCreated: {date}\t{link}'.format(name=self.name, screen_name=self.screen_name, body=self.body, link=self.url, date=self.date)
+			title = '#{num} - {body} - @{screen_name}'.format(num=self.number, screen_name=self.screen_name, body=self.body)
+			desc = '{name} (@{screen_name})\n#{num} - {body}\n\nCreated: {date}\t{link}'.format(name=self.name, screen_name=self.screen_name, body=self.body, link=self.url, date=self.date, num=self.number)
 
 		return {
 			'album': album,
 			'name': title,
 			'title': title,
 			'description': desc,
-			'number': number
 		}
 
 	def upload(self, client):
@@ -175,21 +175,28 @@ class ImgurImages:
 		return self.imgs
 
 class RedditPost:
-	def __init__(self, subreddit, link, title):
+	def __init__(self, subreddit, link, title, post, com):
 		self.subreddit = subreddit
 		self.link = link
 		self.title = title
-		self.post = None
+		self.post = post
+		self.com = com
 		self.ret = None
 
-	def upload(self):
+	def upload(self, doc):
 		if not self.post:
 			logging.info('Submitting Reddit link to subreddit "{subreddit}" for images "{link}"'.format(subreddit=self.subreddit, link=self.link))
 			self.ret = self.subreddit.submit(title=self.title, url=self.link)
 			self.post = self.ret.permalink
+			info = self.ret.reply('{name} (@{user}) - {body}\n\n{link}'.format(name=doc['name'], user=doc['user'], body=doc['raw'], link=doc['tweet']))
+			self.com = info.permalink
+		elif not self.com:
+			logging.info('Already submitted Reddit link leaving comment: {post}'.format(post=self.post))
+			info = self.ret.reply('{name} (@{user}) - {body}\n\n{link}\n\n&nbsp;\n\n^(I am a bot written by /u/spsseano and my source code can be found at https://github.com/spslater/twitter2reddit)'.format(name=doc['name'], user=doc['user'], body=doc['raw'], link=['tweet']))
+			self.com = info.permalink
 		else:
-			logging.info('Already submitted Reddit link: {post}'.format(post=self.post))
-		return self.post
+			logging.info('Already submitted Reddit link and commented: {post} - {com}'.format(post=self.post, com=self.com))
+		return self.post, self.com
 
 class TwitterToReddit:
 	def __init__(self, settings, twitter_client=None, imgur_client=None, reddit_client=None):
@@ -274,7 +281,7 @@ class TwitterToReddit:
 				'post': None,
 				'number': self.number
 			}
-			imgs = ImgurImages(status).upload(self.imgur)
+			imgs = ImgurImages(status, self.number).upload(self.imgur)
 			db_entry['imgs'] = imgs
 			url = 'https://imgur.com/{iid}'.format(iid=imgs[0])
 			text = '#{num} - {text}'.format(text=status.text, num=self.number)
@@ -291,29 +298,30 @@ class TwitterToReddit:
 			post_urls.append(db_entry)
 			self.number += 1
 			with open(settings['number'], 'w') as fp:
-				fp.write(self.number)
+				fp.write(str(self.number))
 		return post_urls
 
 	def already_uploaded(self, statuses):
 		sids = [ s.sid for s in statuses ]
-		docs = self.database.get_docs('sid', sids)
-		return [ (doc['url'], doc['text'], doc['sid']) for doc in docs ]
+		return self.database.get_docs('sid', sids)
 
 	def to_reddit(self, posts):
 		logging.info('Posting {num} imgur links to /r/{subreddit}'.format(num=len(posts), subreddit=self.subreddit))
 		post_urls = []
 		for post in posts:
 			sid = post['sid']
-			link = post['link']
-			title = post['title']
+			link = post['url']
+			title = post['text']
 			screen_name = post['user']
 			name = post['name']
 			raw = post['raw']
 			twt = post['tweet']
+			red = post.get('post')
+			com = post.get('com')
 
 			sub = self.reddit.subreddit(self.subreddit)
-			res = RedditPost(subreddit=sub, link=link, title=title).upload()
-			com = res.reply('{name} (@{user})\n{body}\n\n{link}'.format(name=name, user=screen_name, body=raw, link=tweet))
+			res, com = RedditPost(subreddit=sub, link=link, title=title, post=red, com=com).upload(post)
+			
 			self.database.upsert({'post': res, 'url': link, 'comment': com}, 'sid', sid)
 			post_urls.append(res)
 			logging.info('Reddit Post: {}'.format(res))
