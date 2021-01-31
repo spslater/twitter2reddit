@@ -68,9 +68,9 @@ class TweetStatus:
 	def __init__(self, status):
 		self.sid = status.id
 		self.date = datetime.fromtimestamp(status.created_at_in_seconds).strftime('%Y-%m-%d %H:%M:%S')
-		self.user = status.user.screen_name
+		self.screen_name = status.user.screen_name
 		self.name = status.user.name
-		self.url = self.tweet_url(self.user, status.id)
+		self.url = self.tweet_url(self.screen_name, status.id)
 		self.text = self.clean_text(status.text)
 		self.media = [ self.media_url(m) for m in status.media ]
 		logging.debug('Generated TweetStatus for tweet {}'.format(self.sid))
@@ -82,8 +82,8 @@ class TweetStatus:
 		size = '?name=large' if 'large' in media.sizes else ''
 		return '{url}{size}'.format(url=media.media_url_https, size=size)
 
-	def tweet_url(self, user, sid):
-		return 'https://twitter.com/{user}/status/{id}'.format(user=user, id=sid)
+	def tweet_url(self, screen_name, sid):
+		return 'https://twitter.com/{screen_name}/status/{id}'.format(screen_name=screen_name, id=sid)
 
 class ImgurAlbum:
 	def __init__(self, deletehash=None, aid=None, title=None, desc=None, privacy='hidden'):
@@ -137,9 +137,9 @@ class ImgurAlbum:
 
 class ImgurImages:
 	def __init__(self, tweet, album=None):
-		self.user = tweet.user
-		self.body = tweet.text
 		self.name = tweet.name
+		self.screen_name = tweet.screen_name
+		self.body = tweet.text
 		self.url = tweet.url
 		self.date = tweet.date
 		self.media = tweet.media
@@ -152,17 +152,18 @@ class ImgurImages:
 		title = None
 		desc = None
 		if idx >= 0:
-			title = '@{user} - {body} - {idx} of {total}'.format(user=self.user, body=self.body, idx=idx+1, total=len(self.media))
-			desc = '{name} (@{user}) - {idx} of {total}\n{body}\n\nCreated: {date}\t{link}'.format(name=self.name, user=self.user, body=self.body, link=self.url, date=self.date, idx=idx+1, total=len(self.media))
+			title = '#{num} - {body} - @{screen_name} - {idx} of {total}'.format(screen_name=self.screen_name, body=self.body, idx=idx+1, total=len(self.media))
+			desc = '#{num} {name} (@{screen_name}) - {idx} of {total}\n{body}\n\nCreated: {date}\t{link}'.format(name=self.name, screen_name=self.screen_name, body=self.body, link=self.url, date=self.date, idx=idx+1, total=len(self.media))
 		else:
-			title = '@{user} - {body}'.format(user=self.user, body=self.body)
-			desc = '{name} (@{user})\n{body}\n\nCreated: {date}\t{link}'.format(name=self.name, user=self.user, body=self.body, link=self.url, date=self.date, )
+			title = '#{num} - {body} - @{screen_name}'.format(screen_name=self.screen_name, body=self.body)
+			desc = '{name} (@{screen_name})\n{body}\n\nCreated: {date}\t{link}'.format(name=self.name, screen_name=self.screen_name, body=self.body, link=self.url, date=self.date)
 
 		return {
 			'album': album,
 			'name': title,
 			'title': title,
 			'description': desc,
+			'number': number
 		}
 
 	def upload(self, client):
@@ -199,6 +200,9 @@ class TwitterToReddit:
 		self.twitter = twitter_client if twitter_client else self.get_twitter()
 		self.imgur = imgur_client if imgur_client else self.get_imgur()
 		self.reddit = reddit_client if reddit_client else self.get_reddit()
+
+		with open(settings['number'], 'r') as fp:
+			self.number = int(fp.read().strip())
 		
 		self.database = Database(filename=settings['database'], table=settings['table'])
 
@@ -232,14 +236,14 @@ class TwitterToReddit:
 		)
 
 	def single_album(self, tweet):
-		logging.debug('Generating ImgurAlbum for single tweet "{sid}" from @{name} with multiple media files'.format(sid=tweet.sid, name=tweet.name))
+		logging.debug('Generating ImgurAlbum for single tweet "{sid}" from @{screen_name} with multiple media files'.format(sid=tweet.sid, screen_name=tweet.name))
 		return ImgurAlbum(
-			title='@{name} - {text}'.format(name=tweet.name, text=tweet.text),
-			desc='Images from @{name} at {url}'.format(name=tweet.name, url=tweet.url)
+			title='@{screen_name} - {text}'.format(screen_name=tweet.name, text=tweet.text),
+			desc='Images from @{screen_name} at {url}'.format(screen_name=tweet.name, url=tweet.url)
 		).create(self.imgur)
 
 	def get_statuses(self):
-		logging.info('Getting recent statuses from Twitter for @{name}'.format(name=self.user))
+		logging.info('Getting recent statuses from Twitter for @{screen_name}'.format(screen_name=self.user))
 		statuses = self.twitter.GetUserTimeline(screen_name=self.user, exclude_replies=True, include_rts=False)
 		unchecked = []
 		partial = []
@@ -258,19 +262,22 @@ class TwitterToReddit:
 		for status in statuses:
 			db_entry = {
 				'sid': status.sid,
-				'user': status.user,
+				'name': status.name,
+				'user': status.screen_name,
 				'tweet': status.url,
+				'raw': status.text,
 				'text': None,
 				'imgs': [],
 				'url': None,
 				'album': None,
 				'aid': None,
 				'post': None,
+				'number': self.number
 			}
 			imgs = ImgurImages(status).upload(self.imgur)
 			db_entry['imgs'] = imgs
 			url = 'https://imgur.com/{iid}'.format(iid=imgs[0])
-			text = '@{name} - {text}'.format(name=status.user, text=status.text)
+			text = '#{num} - {text}'.format(text=status.text, num=self.number)
 			db_entry['text'] = text
 			self.all_album.add(self.imgur, imgs)
 			if len(status.media) > 1:
@@ -281,7 +288,10 @@ class TwitterToReddit:
 				url = album.url(self.imgur)
 			db_entry['url'] = url
 			self.database.upsert(db_entry, 'sid', status.sid)
-			post_urls.append((url, text, status.sid))
+			post_urls.append(db_entry)
+			self.number += 1
+			with open(settings['number'], 'w') as fp:
+				fp.write(self.number)
 		return post_urls
 
 	def already_uploaded(self, statuses):
@@ -292,23 +302,32 @@ class TwitterToReddit:
 	def to_reddit(self, posts):
 		logging.info('Posting {num} imgur links to /r/{subreddit}'.format(num=len(posts), subreddit=self.subreddit))
 		post_urls = []
-		for link, title, sid in posts:
+		for post in posts:
+			sid = post['sid']
+			link = post['link']
+			title = post['title']
+			screen_name = post['user']
+			name = post['name']
+			raw = post['raw']
+			twt = post['tweet']
+
 			sub = self.reddit.subreddit(self.subreddit)
 			res = RedditPost(subreddit=sub, link=link, title=title).upload()
-			self.database.upsert({'post': res, 'url': link}, 'sid', sid)
+			com = res.reply('{name} (@{user})\n{body}\n\n{link}'.format(name=name, user=screen_name, body=raw, link=tweet))
+			self.database.upsert({'post': res, 'url': link, 'comment': com}, 'sid', sid)
 			post_urls.append(res)
 			logging.info('Reddit Post: {}'.format(res))
 		return post_urls
 
 	def upload(self):
-		logging.info('Starting recent status uploads from @{name} to post on /r/{subreddit}'.format(name=self.user, subreddit=self.subreddit))
+		logging.info('Starting recent status uploads from @{user} to post on /r/{subreddit}'.format(user=self.user, subreddit=self.subreddit))
 		unchecked, partial = self.get_statuses()
 		uploaded = self.to_imgur(unchecked)
 		posts = self.to_reddit(uploaded)
 		partial_imgur = self.already_uploaded(partial)
 		partial_posts = self.to_reddit(partial_imgur)
 		posts.extend(partial_posts)
-		logging.info('Successfully made {num} new posts to /r/{subreddit} from @{name}'.format(num=len(posts), subreddit=self.subreddit, name=self.user))
+		logging.info('Successfully made {num} new posts to /r/{subreddit} from @{user}'.format(num=len(posts), subreddit=self.subreddit, user=self.user))
 		logging.debug('New posts on /r/{subreddit}: {posts}'.format(subreddit=self.subreddit, posts=posts))
 		return posts
 
