@@ -319,7 +319,7 @@ class TwitterToReddit:
 			}
 			imgs = ImgurImages(status, self.number).upload(self.imgur)
 			db_entry['imgs'] = imgs
-			url = 'https://imgur.com/{iid}'.format(iid=imgs[0])
+			url = 'https://i.imgur.com/{iid}.jpg'.format(iid=imgs[0])
 			text = '#{num} - {text}'.format(text=status.text, num=self.number)
 			db_entry['text'] = text
 			self.all_album.add(self.imgur, imgs)
