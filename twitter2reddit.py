@@ -329,7 +329,7 @@ class TwitterToReddit:
 				'user': status.screen_name,
 				'tweet': status.url,
 				'raw': status.text,
-				'text': None,
+				'title': None,
 				'imgs': [],
 				'url': None,
 				'album': None,
@@ -339,9 +339,8 @@ class TwitterToReddit:
 			}
 			imgs = ImgurImages(status, self.number).upload(self.imgur)
 			db_entry['imgs'] = imgs
+			db_entry['title'] = '#{num} - {text}'.format(text=status.text, num=self.number)
 			url = 'https://i.imgur.com/{iid}.jpg'.format(iid=imgs[0])
-			text = '#{num} - {text}'.format(text=status.text, num=self.number)
-			db_entry['text'] = text
 			self.all_album.add(self.imgur, imgs)
 			if len(status.media) > 1:
 				album = self.single_album(status)
@@ -349,9 +348,9 @@ class TwitterToReddit:
 				db_entry['album'] = album.deletehash
 				db_entry['aid'] = album.aid
 				url = album.url(self.imgur)
-			else len(status.media) == 1:
+			elif len(status.media) == 1:
 				db_entry['album'] = self.all_album.deletehash
-				db_entry['aid'] = self.all_album.album.aid
+				db_entry['aid'] = self.all_album.aid
 			db_entry['url'] = url
 			self.database.upsert(db_entry, 'sid', status.sid)
 			post_urls.append(db_entry)
@@ -370,7 +369,7 @@ class TwitterToReddit:
 		for post in posts:
 			sid = post['sid']
 			link = post['url']
-			title = post['text']
+			title = post['title']
 			screen_name = post['user']
 			name = post['name']
 			raw = post['raw']
