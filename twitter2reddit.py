@@ -50,11 +50,20 @@ class Database:
 		self.db = TinyDB(filename, storage=PrettyJSONStorage).table(table)
 
 	def upsert(self, data, key, val):
-		logging.debug('Upserting into table "{table}" where "{key}" == "{val}" with data: {data}'.format(table=self.table, key=key, val=val, data=data))
+		logging.debug('Upserting into table "{table}" where "{key}" == "{val}" with data: {data}'.format(
+			table=self.table,
+			key=key,
+			val=val,
+			data=data
+		))
 		return self.db.upsert(data, where(key) == val)
 
 	def check_upload(self, key, val):
-		logging.debug('Searching for docs in table "{table}" where "{key}" == "{val}"'.format(table=self.table, key=key, val=val))
+		logging.debug('Searching for docs in table "{table}" where "{key}" == "{val}"'.format(
+			table=self.table,
+			key=key,
+			val=val
+		))
 		return self.db.search(where(key) == val)
 
 	def get_docs(self, key, vals):
@@ -98,7 +107,9 @@ class ImgurAlbum:
 		if self.deletehash:
 			logging.debug('Generated ImgurAlbum for album with deletehash "{deletehash}"'.format(deletehash=self.deletehash))
 		else:
-			logging.debug('Generated ImgurAlbum for album with title "{title}", no deletehash provided'.format(title=self.config['title']))
+			logging.debug('Generated ImgurAlbum for album with title "{title}", no deletehash provided'.format(
+				title=self.config['title']
+			))
 
 	def form_url(self, album_id):
 		return 'https://imgur.com/a/{}'.format(album_id)
@@ -115,13 +126,19 @@ class ImgurAlbum:
 			self.aid = client.get_album(self.deletehash)
 			self.url = self.form_url(self.aid)
 		else:
-			logging.info('Imgur album does not need to be created, it already exists with deletehash "{deletehash}"'.format(deletehash=self.deletehash))
+			logging.info('Imgur album does not need to be created, it already exists with deletehash "{deletehash}"'.format(
+				deletehash=self.deletehash
+			))
 			if not self.url:
 				self.url = self.form_url(self.aid)
 		return self.deletehash
 
 	def add(self, client, img_ids):
-		logging.info('Adding {num} ids to album with deletehash "{deletehash}": {id_list}'.format(num=len(img_ids), deletehash=self.deletehash, id_list=img_ids))
+		logging.info('Adding {num} ids to album with deletehash "{deletehash}": {id_list}'.format(
+			num=len(img_ids),
+			deletehash=self.deletehash,
+			id_list=img_ids
+		))
 		if not self.deletehash:
 			logging.debug('Creating album to add imgs to.')
 			self.create(client)
@@ -279,7 +296,10 @@ class TwitterToReddit:
 		)
 
 	def single_album(self, tweet):
-		logging.debug('Generating ImgurAlbum for single tweet "{sid}" from @{screen_name} with multiple media files'.format(sid=tweet.sid, screen_name=tweet.name))
+		logging.debug('Generating ImgurAlbum for single tweet "{sid}" from @{screen_name} with multiple media files'.format(
+			sid=tweet.sid,
+			screen_name=tweet.name
+		))
 		return ImgurAlbum(
 			title='@{screen_name} - {text}'.format(screen_name=tweet.name, text=tweet.text),
 			desc='Images from @{screen_name} at {url}'.format(screen_name=tweet.name, url=tweet.url)
@@ -367,14 +387,21 @@ class TwitterToReddit:
 		return post_urls
 
 	def upload(self):
-		logging.info('Starting recent status uploads from @{user} to post on /r/{subreddit}'.format(user=self.user, subreddit=self.subreddit))
+		logging.info('Starting recent status uploads from @{user} to post on /r/{subreddit}'.format(
+			user=self.user,
+			subreddit=self.subreddit
+		))
 		unchecked, partial = self.get_statuses()
 		uploaded = self.to_imgur(unchecked)
 		posts = self.to_reddit(uploaded)
 		partial_imgur = self.already_uploaded(partial)
 		partial_posts = self.to_reddit(partial_imgur)
 		posts.extend(partial_posts)
-		logging.info('Successfully made {num} new posts to /r/{subreddit} from @{user}'.format(num=len(posts), subreddit=self.subreddit, user=self.user))
+		logging.info('Successfully made {num} new posts to /r/{subreddit} from @{user}'.format(
+			num=len(posts),
+			subreddit=self.subreddit,
+			user=self.user
+		))
 		logging.debug('New posts on /r/{subreddit}: {posts}'.format(subreddit=self.subreddit, posts=posts))
 		return posts
 
