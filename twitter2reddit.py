@@ -227,7 +227,7 @@ class RedditPost:
 		self.ret = None
 
 	def upload(self, doc):
-		comment_text = '{name} (@{user})\n{body}\n\n{link}'.format(
+		comment_text = '{name} (@{user})\n{body}\n\n{link}\n\n&nbsp;\n\n^(I am a bot developed by /u/spsseano. My source code can be found at https://github.com/spslater/twitter2reddit)'.format(
 			name=doc['name'],
 			user=doc['user'],
 			body=doc['raw'],
