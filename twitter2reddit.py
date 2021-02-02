@@ -153,11 +153,37 @@ class ImgurImages:
 		title = None
 		desc = None
 		if idx >= 0:
-			title = '#{num} - {body} - @{screen_name} - {idx} of {total}'.format(num=self.number, screen_name=self.screen_name, body=self.body, idx=idx+1, total=len(self.media))
-			desc = '{name} (@{screen_name}) - {idx} of {total}\n#{num} - {body}\n\nCreated: {date}\t{link}'.format(name=self.name, screen_name=self.screen_name, body=self.body, link=self.url, date=self.date, idx=idx+1, total=len(self.media), num=self.number)
+			title = '#{num} - {body} - @{screen_name} - {idx} of {total}'.format(
+				num=self.number,
+				screen_name=self.screen_name,
+				body=self.body,
+				idx=idx+1,
+				total=len(self.media)
+			)
+			desc = '{name} (@{screen_name}) - {idx} of {total}\n#{num} - {body}\n\nCreated: {date}\t{link}'.format(
+				name=self.name,
+				screen_name=self.screen_name,
+				body=self.body,
+				link=self.url,
+				date=self.date,
+				idx=idx+1,
+				total=len(self.media),
+				num=self.number
+			)
 		else:
-			title = '#{num} - {body} - @{screen_name}'.format(num=self.number, screen_name=self.screen_name, body=self.body)
-			desc = '{name} (@{screen_name})\n#{num} - {body}\n\nCreated: {date}\t{link}'.format(name=self.name, screen_name=self.screen_name, body=self.body, link=self.url, date=self.date, num=self.number)
+			title = '#{num} - {body} - @{screen_name}'.format(
+				num=self.number,
+				screen_name=self.screen_name,
+				body=self.body
+			)
+			desc = '{name} (@{screen_name})\n#{num} - {body}\n\nCreated: {date}\t{link}'.format(
+				name=self.name,
+				screen_name=self.screen_name,
+				body=self.body,
+				link=self.url,
+				date=self.date,
+				num=self.number
+			)
 
 		return {
 			'album': album,
@@ -184,15 +210,25 @@ class RedditPost:
 		self.ret = None
 
 	def upload(self, doc):
+		comment_text = '{name} (@{user})\n{body}\n\n{link}'.format(
+			name=doc['name'],
+			user=doc['user'],
+			body=doc['raw'],
+			link=doc['tweet']
+		)
+
 		if not self.post:
-			logging.info('Submitting Reddit link to subreddit "{subreddit}" for images "{link}"'.format(subreddit=self.subreddit, link=self.link))
+			logging.info('Submitting Reddit link to subreddit "{subreddit}" for images "{link}"'.format(
+				subreddit=self.subreddit,
+				link=self.link)
+			)
 			self.ret = self.subreddit.submit(title=self.title, url=self.link)
 			self.post = self.ret.permalink
-			info = self.ret.reply('{name} (@{user}) - {body}\n\n{link}'.format(name=doc['name'], user=doc['user'], body=doc['raw'], link=doc['tweet']))
+			info = self.ret.reply(comment_text)
 			self.com = info.permalink
 		elif not self.com:
 			logging.info('Already submitted Reddit link leaving comment: {post}'.format(post=self.post))
-			info = self.ret.reply('{name} (@{user}) - {body}\n\n{link}\n\n&nbsp;\n\n^(I am a bot written by /u/spsseano and my source code can be found at https://github.com/spslater/twitter2reddit)'.format(name=doc['name'], user=doc['user'], body=doc['raw'], link=['tweet']))
+			info = self.ret.reply(comment_text)
 			self.com = info.permalink
 		else:
 			logging.info('Already submitted Reddit link and commented: {post} - {com}'.format(post=self.post, com=self.com))
@@ -210,7 +246,7 @@ class TwitterToReddit:
 
 		with open(settings['number'], 'r') as fp:
 			self.number = int(fp.read().strip())
-		
+
 		self.database = Database(filename=settings['database'], table=settings['table'])
 
 	def get_twitter(self):
@@ -293,6 +329,9 @@ class TwitterToReddit:
 				db_entry['album'] = album.deletehash
 				db_entry['aid'] = album.aid
 				url = album.url(self.imgur)
+			else len(status.media) == 1:
+				db_entry['album'] = self.all_album.deletehash
+				db_entry['aid'] = self.all_album.album.aid
 			db_entry['url'] = url
 			self.database.upsert(db_entry, 'sid', status.sid)
 			post_urls.append(db_entry)
@@ -321,7 +360,7 @@ class TwitterToReddit:
 
 			sub = self.reddit.subreddit(self.subreddit)
 			res, com = RedditPost(subreddit=sub, link=link, title=title, post=red, com=com).upload(post)
-			
+
 			self.database.upsert({'post': res, 'url': link, 'comment': com}, 'sid', sid)
 			post_urls.append(res)
 			logging.info('Reddit Post: {}'.format(res))
