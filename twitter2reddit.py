@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from json import dumps
 from os import getenv, fsync
 from sys import stdout
+from time import sleep
 from tinydb import TinyDB, where, JSONStorage
 from yaml import load, Loader
 
@@ -436,5 +437,11 @@ if __name__ == "__main__":
 	with open(args.filename, 'r') as fp:
 		settings = load(fp, Loader=Loader)
 
+	attemps = 1
 	t2r = TwitterToReddit(settings)
-	t2r.upload()
+	posts = t2r.upload()
+	while not posts or attemps > 60:
+		logging.warn('No posts were made, sleeping for 1 min to try again. Will attempt {} more times before exiting.'.format(60-attemps))
+		sleep(60)
+		posts = t2r.upload()
+		attemps += 1
