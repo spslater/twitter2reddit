@@ -1,6 +1,6 @@
 imgurpython==1.1.7
-praw==7.1.0
-tinydb==3.14.1
+praw==7.1.4
 python-dotenv==0.15.0
 python_twitter==3.5
 PyYAML==5.4.1
+tinydb==4.3.0
