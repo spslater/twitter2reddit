@@ -26,7 +26,7 @@ class PrettyJSONStorage(JSONStorage):
 		try:
 			self._handle.write(serialized)
 		except UnsupportedOperation:
-			raise IOError('Cannot write to the database. Access mode is "{0}"'.format(self._mode))
+			raise IOError(f'Cannot write to the database. Access mode is "{self._mode}"')
 
 		self._handle.flush()
 		fsync(self._handle.fileno())
@@ -51,20 +51,11 @@ class Database:
 		self.db = TinyDB(filename, storage=PrettyJSONStorage).table(table)
 
 	def upsert(self, data, key, val):
-		logging.debug('Upserting into table "{table}" where "{key}" == "{val}" with data: {data}'.format(
-			table=self.table,
-			key=key,
-			val=val,
-			data=data
-		))
+		logging.debug(f'Upserting into table "{self.table}" where "{key}" == "{val}" with data: {data}')
 		return self.db.upsert(data, where(key) == val)
 
 	def check_upload(self, key, val):
-		logging.debug('Searching for docs in table "{table}" where "{key}" == "{val}"'.format(
-			table=self.table,
-			key=key,
-			val=val
-		))
+		logging.debug(f'Searching for docs in table "{self.table}" where "{key}" == "{val}"')
 		return self.db.search(where(key) == val)
 
 	def get_docs(self, key, vals):
@@ -83,17 +74,17 @@ class TweetStatus:
 		self.url = self.tweet_url(self.screen_name, status.id)
 		self.text = self.clean_text(status.text)
 		self.media = [ self.media_url(m) for m in status.media ]
-		logging.debug('Generated TweetStatus for tweet {}'.format(self.sid))
+		logging.debug(f'Generated TweetStatus for tweet {self.sid}')
 
 	def clean_text(self, text):
 		return re.sub(r'\s+https://t.co/.*?$', '', text)
 
 	def media_url(self, media):
 		size = '?name=large' if 'large' in media.sizes else ''
-		return '{url}{size}'.format(url=media.media_url_https, size=size)
+		return f'{media.media_url_https}{size}'
 
 	def tweet_url(self, screen_name, sid):
-		return 'https://twitter.com/{screen_name}/status/{id}'.format(screen_name=screen_name, id=sid)
+		return f'https://twitter.com/{screen_name}/status/{sid}'
 
 class ImgurAlbum:
 	def __init__(self, deletehash=None, aid=None, title=None, desc=None, privacy='hidden'):
@@ -106,40 +97,32 @@ class ImgurAlbum:
 			'privacy': privacy,
 		}
 		if self.deletehash:
-			logging.debug('Generated ImgurAlbum for album with deletehash "{deletehash}"'.format(deletehash=self.deletehash))
+			logging.debug(f'Generated ImgurAlbum for album with deletehash "{self.deletehash}"')
 		else:
-			logging.debug('Generated ImgurAlbum for album with title "{title}", no deletehash provided'.format(
-				title=self.config['title']
-			))
+			logging.debug(f'Generated ImgurAlbum for album with title "{self.config["title"]}", no deletehash provided')
 
 	def form_url(self, album_id):
-		return 'https://imgur.com/a/{}'.format(album_id)
+		return f'https://imgur.com/a/{album_id}'
 
 	def create(self, client):
 		if not self.deletehash:
-			logging.info('Creating new imgur album with config: {config}'.format(config=self.config))
+			logging.info(f'Creating new imgur album with config: {self.config}')
 			album = client.create_album(self.config)
 			self.deletehash = album['deletehash']
 			self.aid = album['id']
 			self.url = self.form_url(self.aid)
 		elif not self.aid:
-			logging.info('Getting album id and url for album with deletehash: {deletehash}'.format(deletehash=self.deletehash))
+			logging.info(f'Getting album id and url for album with deletehash: {self.deletehash}')
 			self.aid = client.get_album(self.deletehash)
 			self.url = self.form_url(self.aid)
 		else:
-			logging.info('Imgur album does not need to be created, it already exists with deletehash "{deletehash}"'.format(
-				deletehash=self.deletehash
-			))
+			logging.info(f'Imgur album does not need to be created, it already exists with deletehash "{self.deletehash}"')
 			if not self.url:
 				self.url = self.form_url(self.aid)
 		return self.deletehash
 
 	def add(self, client, img_ids):
-		logging.info('Adding {num} ids to album with deletehash "{deletehash}": {id_list}'.format(
-			num=len(img_ids),
-			deletehash=self.deletehash,
-			id_list=img_ids
-		))
+		logging.info(f'Adding {len(img_ids)} ids to album with deletehash "{self.deletehash}": {img_ids}')
 		if not self.deletehash:
 			logging.debug('Creating album to add imgs to.')
 			self.create(client)
@@ -150,7 +133,7 @@ class ImgurAlbum:
 			self.create(client)
 		elif not self.url:
 			self.url = self.form_url(self.aid)
-		logging.info('Getting Imgur album url: {url}'.format(url=self.url))
+		logging.info(f'Getting Imgur album url: {self.url}')
 		return self.url
 
 class ImgurImages:
@@ -164,20 +147,14 @@ class ImgurImages:
 		self.album = album.deletehash if album else None
 		self.number = number
 		self.imgs = []
-		logging.debug('Generated new imgur images from tweet {} and putting it in album {}'.format(tweet.sid, self.album))
+		logging.debug(f'Generated new imgur images from tweet {tweet.sid} and putting it in album {self.album}')
 
 	def gen_config(self, album, idx=-1):
-		logging.debug('Generating imgur image upload config for album "{album}"'.format(album=album))
+		logging.debug(f'Generating imgur image upload config for album "{album}"')
 		title = None
 		desc = None
 		if idx >= 0:
-			title = '#{num} - {body} - @{screen_name} - {idx} of {total}'.format(
-				num=self.number,
-				screen_name=self.screen_name,
-				body=self.body,
-				idx=idx+1,
-				total=len(self.media)
-			)
+			title = f'#{self.number} - {self.body} - @{self.screen_name} - {idx+1} of {len(self.media)}'
 			desc = '{name} (@{screen_name}) - {idx} of {total}\n#{num} - {body}\n\nCreated: {date}\t{link}'.format(
 				name=self.name,
 				screen_name=self.screen_name,
@@ -189,11 +166,7 @@ class ImgurImages:
 				num=self.number
 			)
 		else:
-			title = '#{num} - {body} - @{screen_name}'.format(
-				num=self.number,
-				screen_name=self.screen_name,
-				body=self.body
-			)
+			title = f'#{self.number} - {self.body} - @{self.screen_name}'
 			desc = '{name} (@{screen_name})\n#{num} - {body}\n\nCreated: {date}\t{link}'.format(
 				name=self.name,
 				screen_name=self.screen_name,
@@ -211,7 +184,7 @@ class ImgurImages:
 		}
 
 	def upload(self, client):
-		logging.info('Uploading {num} images to album "{album}"'.format(num=len(self.media), album=self.album))
+		logging.info(f'Uploading {len(self.media)} images to album "{self.album}"')
 		for i, m in enumerate(self.media):
 			cfg = self.gen_config(album=self.album, idx=i) if len(self.media) > 1 else self.gen_config(album=self.album)
 			ret = client.upload_from_url(m, config=cfg, anon=False)
@@ -236,20 +209,17 @@ class RedditPost:
 		)
 
 		if not self.post:
-			logging.info('Submitting Reddit link to subreddit "{subreddit}" for images "{link}"'.format(
-				subreddit=self.subreddit,
-				link=self.link)
-			)
+			logging.info(f'Submitting Reddit link to subreddit "{self.subreddit}" for images "{self.link}"')
 			self.ret = self.subreddit.submit(title=self.title, url=self.link)
 			self.post = self.ret.permalink
 			info = self.ret.reply(comment_text)
 			self.com = info.permalink
 		elif not self.com:
-			logging.info('Already submitted Reddit link leaving comment: {post}'.format(post=self.post))
+			logging.info(f'Already submitted Reddit link leaving comment: {self.post}')
 			info = self.ret.reply(comment_text)
 			self.com = info.permalink
 		else:
-			logging.info('Already submitted Reddit link and commented: {post} - {com}'.format(post=self.post, com=self.com))
+			logging.info(f'Already submitted Reddit link and commented: {self.post} - {self.com}')
 		return self.post, self.com
 
 class TwitterToReddit:
@@ -297,17 +267,14 @@ class TwitterToReddit:
 		)
 
 	def single_album(self, tweet):
-		logging.debug('Generating ImgurAlbum for single tweet "{sid}" from @{screen_name} with multiple media files'.format(
-			sid=tweet.sid,
-			screen_name=tweet.name
-		))
+		logging.debug('Generating ImgurAlbum for single tweet "{tweet.sid}" from @{tweet.name} with multiple media files')
 		return ImgurAlbum(
-			title='@{screen_name} - {text}'.format(screen_name=tweet.name, text=tweet.text),
-			desc='Images from @{screen_name} at {url}'.format(screen_name=tweet.name, url=tweet.url)
+			title=f'@{tweet.name} - {tweet.text}',
+			desc=f'Images from @{tweet.name} at {tweet.url}'
 		).create(self.imgur)
 
 	def get_statuses(self):
-		logging.info('Getting recent statuses from Twitter for @{screen_name}'.format(screen_name=self.user))
+		logging.info(f'Getting recent statuses from Twitter for @{self.user}')
 		statuses = self.twitter.GetUserTimeline(screen_name=self.user, exclude_replies=True, include_rts=False)
 		unchecked = []
 		partial = []
@@ -321,7 +288,7 @@ class TwitterToReddit:
 		return [TweetStatus(s) for s in unchecked], [TweetStatus(s) for s in partial]
 
 	def to_imgur(self, statuses):
-		logging.info('Uploaded {num} tweet images to imgur'.format(num=len(statuses)))
+		logging.info(f'Uploaded {len(statuses)} tweet images to imgur')
 		post_urls = []
 		for status in statuses:
 			db_entry = {
@@ -340,8 +307,8 @@ class TwitterToReddit:
 			}
 			imgs = ImgurImages(status, self.number).upload(self.imgur)
 			db_entry['imgs'] = imgs
-			db_entry['title'] = '#{num} - {text}'.format(text=status.text, num=self.number)
-			url = 'https://i.imgur.com/{iid}.jpg'.format(iid=imgs[0])
+			db_entry['title'] = f'#{self.number} - {status.text}'
+			url = f'https://i.imgur.com/{imgs[0]}.jpg'
 			self.all_album.add(self.imgur, imgs)
 			if len(status.media) > 1:
 				album = self.single_album(status)
@@ -365,7 +332,7 @@ class TwitterToReddit:
 		return self.database.get_docs('sid', sids)
 
 	def to_reddit(self, posts):
-		logging.info('Posting {num} imgur links to /r/{subreddit}'.format(num=len(posts), subreddit=self.subreddit))
+		logging.info(f'Posting {len(posts)} imgur links to /r/{self.subreddit}')
 		post_urls = []
 		for post in posts:
 			sid = post['sid']
@@ -383,26 +350,19 @@ class TwitterToReddit:
 
 			self.database.upsert({'post': res, 'url': link, 'comment': com}, 'sid', sid)
 			post_urls.append(res)
-			logging.info('Reddit Post: {}'.format(res))
+			logging.info(f'Reddit Post: {res}')
 		return post_urls
 
 	def upload(self):
-		logging.info('Starting recent status uploads from @{user} to post on /r/{subreddit}'.format(
-			user=self.user,
-			subreddit=self.subreddit
-		))
+		logging.info(f'Starting recent status uploads from @{self.user} to post on /r/{self.subreddit}')
 		unchecked, partial = self.get_statuses()
 		uploaded = self.to_imgur(unchecked)
 		posts = self.to_reddit(uploaded)
 		partial_imgur = self.already_uploaded(partial)
 		partial_posts = self.to_reddit(partial_imgur)
 		posts.extend(partial_posts)
-		logging.info('Successfully made {num} new posts to /r/{subreddit} from @{user}'.format(
-			num=len(posts),
-			subreddit=self.subreddit,
-			user=self.user
-		))
-		logging.debug('New posts on /r/{subreddit}: {posts}'.format(subreddit=self.subreddit, posts=posts))
+		logging.info(f'Successfully made {len(posts)} new posts to /r/{self.subreddit} from @{self.user}')
+		logging.debug(f'New posts on /r/{self.subreddit}: {posts}')
 		return posts
 
 
@@ -441,7 +401,7 @@ if __name__ == "__main__":
 	t2r = TwitterToReddit(settings)
 	posts = t2r.upload()
 	while not posts or attemps > 60:
-		logging.warning('No posts were made, sleeping for 1 min to try again. Will attempt {} more times before exiting.'.format(60-attemps))
+		logging.warning(f'No posts were made, sleeping for 1 min to try again. Will attempt {60-attemps} more times before exiting.')
 		sleep(60)
 		posts = t2r.upload()
 		attemps += 1
