@@ -441,7 +441,7 @@ if __name__ == "__main__":
 	t2r = TwitterToReddit(settings)
 	posts = t2r.upload()
 	while not posts or attemps > 60:
-		logging.warn('No posts were made, sleeping for 1 min to try again. Will attempt {} more times before exiting.'.format(60-attemps))
+		logging.warning('No posts were made, sleeping for 1 min to try again. Will attempt {} more times before exiting.'.format(60-attemps))
 		sleep(60)
 		posts = t2r.upload()
 		attemps += 1
