@@ -211,6 +211,7 @@ class RedditPost:
 		if not self.post:
 			logging.info(f'Submitting Reddit link to subreddit "{self.subreddit}" for images "{self.link}"')
 			self.ret = self.subreddit.submit(title=self.title, url=self.link)
+			self.ret.disable_inbox_replies()
 			self.post = self.ret.permalink
 			info = self.ret.reply(comment_text)
 			self.com = info.permalink
