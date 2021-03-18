@@ -349,9 +349,12 @@ class TwitterToReddit:
 			sub = self.reddit.subreddit(self.subreddit)
 			res, com = RedditPost(subreddit=sub, link=link, title=title, post=red, com=com).upload(post)
 
-			self.database.upsert({'post': res, 'url': link, 'comment': com}, 'sid', sid)
-			post_urls.append(res)
-			logging.info(f'Reddit Post: {res}')
+			if res is not None and com is not None:
+				logging.warning(f'Reddit posting not successful.')
+			else:
+				self.database.upsert({'post': res, 'url': link, 'comment': com}, 'sid', sid)
+				post_urls.append(res)
+				logging.info(f'Reddit Post: {res}')
 		return post_urls
 
 	def upload(self):
@@ -401,8 +404,11 @@ if __name__ == "__main__":
 	attemps = 1
 	t2r = TwitterToReddit(settings)
 	posts = t2r.upload()
-	while not posts or attemps > 60:
+	while not posts and attemps < 60:
 		logging.warning(f'No posts were made, sleeping for 1 min to try again. Will attempt {60-attemps} more times before exiting.')
 		sleep(60)
 		posts = t2r.upload()
 		attemps += 1
+
+	if not posts:
+		logging.error(f'No posts made successfully')
