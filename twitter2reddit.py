@@ -6,6 +6,7 @@ from os import getenv, fsync
 from sys import stdout
 from time import sleep
 from tinydb import TinyDB, where, JSONStorage
+from tinydb.operations import increment
 from yaml import load, Loader
 
 from imgurpython import ImgurClient
@@ -49,6 +50,7 @@ class Database:
 	def __init__(self, filename, table):
 		self.table = table
 		self.db = TinyDB(filename, storage=PrettyJSONStorage).table(table)
+		self.number_id = None
 
 	def upsert(self, data, key, val):
 		logging.debug(f'Upserting into table "{self.table}" where "{key}" == "{val}" with data: {data}')
@@ -64,6 +66,16 @@ class Database:
 			ret = self.db.search(where(key) == val)
 			if ret:	docs.extend(ret)
 		return docs
+
+	def get_number(self):
+		if self.number_id is None:
+			self.number_id = self.db.search(where("number_counter") == True)[0].doc_id
+		return self.db.get(doc_id=self.number_id)['number']
+
+	def increment_number(self):
+		self.db.update(increment('number'), doc_ids=[self.number_id])
+		return self.get_number()
+
 
 class TweetStatus:
 	def __init__(self, status):
@@ -233,10 +245,9 @@ class TwitterToReddit:
 		self.imgur = imgur_client if imgur_client else self.get_imgur()
 		self.reddit = reddit_client if reddit_client else self.get_reddit()
 
-		with open(settings['number'], 'r') as fp:
-			self.number = int(fp.read().strip())
-
 		self.database = Database(filename=settings['database'], table=settings['table'])
+		self.number = self.database.get_number()
+
 
 	def get_twitter(self):
 		logging.debug('Generating Twitter Client')
@@ -323,9 +334,7 @@ class TwitterToReddit:
 			db_entry['url'] = url
 			self.database.upsert(db_entry, 'sid', status.sid)
 			post_urls.append(db_entry)
-			self.number += 1
-			with open(settings['number'], 'w') as fp:
-				fp.write(str(self.number))
+			self.number = self.database.increment_number()
 		return post_urls
 
 	def already_uploaded(self, statuses):
@@ -349,7 +358,7 @@ class TwitterToReddit:
 			sub = self.reddit.subreddit(self.subreddit)
 			res, com = RedditPost(subreddit=sub, link=link, title=title, post=red, com=com).upload(post)
 
-			if res is not None and com is not None:
+			if res is None and com is None:
 				logging.warning(f'Reddit posting not successful.')
 			else:
 				self.database.upsert({'post': res, 'url': link, 'comment': com}, 'sid', sid)
@@ -360,14 +369,18 @@ class TwitterToReddit:
 	def upload(self):
 		logging.info(f'Starting recent status uploads from @{self.user} to post on /r/{self.subreddit}')
 		unchecked, partial = self.get_statuses()
-		uploaded = self.to_imgur(unchecked)
-		posts = self.to_reddit(uploaded)
-		partial_imgur = self.already_uploaded(partial)
-		partial_posts = self.to_reddit(partial_imgur)
-		posts.extend(partial_posts)
-		logging.info(f'Successfully made {len(posts)} new posts to /r/{self.subreddit} from @{self.user}')
-		logging.debug(f'New posts on /r/{self.subreddit}: {posts}')
-		return posts
+		if len(unchecked) == 0 and len(partial) == 0:
+			logging.info(f'No new posts need to be made')
+			return None
+		else:
+			uploaded = self.to_imgur(unchecked)
+			posts = self.to_reddit(uploaded)
+			partial_imgur = self.already_uploaded(partial)
+			partial_posts = self.to_reddit(partial_imgur)
+			posts.extend(partial_posts)
+			logging.info(f'Successfully made {len(posts)} new posts to /r/{self.subreddit} from @{self.user}')
+			logging.debug(f'New posts on /r/{self.subreddit}: {posts}')
+			return posts
 
 
 if __name__ == "__main__":
@@ -404,11 +417,11 @@ if __name__ == "__main__":
 	attemps = 1
 	t2r = TwitterToReddit(settings)
 	posts = t2r.upload()
-	while not posts and attemps < 60:
+	while posts is not None and len(posts) == 0 and attemps <= 60:
 		logging.warning(f'No posts were made, sleeping for 1 min to try again. Will attempt {60-attemps} more times before exiting.')
 		sleep(60)
 		posts = t2r.upload()
 		attemps += 1
 
-	if not posts:
+	if posts is not None and len(posts) == 0:
 		logging.error(f'No posts made successfully')

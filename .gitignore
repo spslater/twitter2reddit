@@ -1,4 +1,3 @@
 .env
 *.db
 *.log
-number.txt
