@@ -1,5 +1,7 @@
 """
-Upload images from twitter status to a subreddit
+Upload images from twitter user to a subreddit
+
+This file is commandline only.
 """
 import logging
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
@@ -15,6 +17,8 @@ from twitter2reddit import TwitterToReddit
 def main():
     """
     Process from command line
+
+    Use `--help` argument to get info
     """
     load_dotenv()
 
