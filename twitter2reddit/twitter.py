@@ -13,6 +13,7 @@ from typing import NamedTuple
 from twitter import Api as Twitter
 from twitter.models import Media, Status
 
+
 class TwitterApiClient:
     """Twitter API Client"""
 

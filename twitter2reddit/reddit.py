@@ -9,6 +9,7 @@ from os import getenv
 
 from praw import Reddit
 
+
 class RedditApiClient:
     """Reddit Api Client"""
 
@@ -43,7 +44,7 @@ class RedditApiClient:
         """
         link = post["url"]
         title = post["title"]
-        post_url= post.get("post")
+        post_url = post.get("post")
         comment_url = post.get("com")
         subreddit = self.api.subreddit(subreddit_name)
 

@@ -134,7 +134,9 @@ class ImgurImage:
         :rtype: dict
         """
         logging.debug('Generating imgur image upload config for album "%s"', album)
-        title = f"#{self.status.number} - {self.status.text} - @{self.status.screen_name}"
+        title = (
+            f"#{self.status.number} - {self.status.text} - @{self.status.screen_name}"
+        )
         desc = (
             f"{self.status.name} (@{self.status.screen_name})\n#{self.status.number} - "
             f"{self.status.text}\n\nCreated: {self.status.date}\t{self.status.url}"
@@ -161,7 +163,11 @@ class ImgurImage:
             ret = client.upload_from_url(self.status.media, config=cfg, anon=False)
             self.imgs = ret["id"]
         else:
-            logging.info('Image already uploaded to album "%s" with id "%s"', self.album, self.imgs)
+            logging.info(
+                'Image already uploaded to album "%s" with id "%s"',
+                self.album,
+                self.imgs,
+            )
         return self.imgs
 
 
@@ -193,7 +199,7 @@ class ImgurApiClient:
             refresh_token=getenv("IMGUR_REFRESH_TOKEN"),
         )
 
-    #pylint: disable=too-many-arguments
+    # pylint: disable=too-many-arguments
     def create_album(
         self,
         name: str,

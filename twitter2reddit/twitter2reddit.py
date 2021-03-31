@@ -27,8 +27,7 @@ class TwitterToReddit:
         self.subreddit = settings["subreddit"]
 
     def get_statuses(self) -> tuple[list[TweetStatus], list[TweetStatus]]:
-        """Get recent twitter statuses
-        """
+        """Get recent twitter statuses"""
         logging.info("Getting recent statuses from Twitter for @%s", self.user)
         statuses = self.twitter.get_recent_statuses(user=self.user)
         partial = []
@@ -51,17 +50,18 @@ class TwitterToReddit:
         return partial, unchecked
 
     def to_imgur(self, statuses):
-        """Upload twitter images to imgur
-        """
+        """Upload twitter images to imgur"""
         logging.info("Uploaded %d tweet images to imgur", len(statuses))
         update_statuses = []
         for status in statuses:
-            status.update({
-                "album": self.imgur.album.deletehash,
-                "aid": self.imgur.album.aid,
-                "number": self.number,
-                "title": f"#{self.number} - {status['text']}",
-            })
+            status.update(
+                {
+                    "album": self.imgur.album.deletehash,
+                    "aid": self.imgur.album.aid,
+                    "number": self.number,
+                    "title": f"#{self.number} - {status['text']}",
+                }
+            )
             imgs = self.imgur.upload_image(status)
             status["imgs"] = imgs
             status["url"] = f"https://i.imgur.com/{imgs}.jpg"
@@ -71,8 +71,7 @@ class TwitterToReddit:
         return update_statuses
 
     def to_reddit(self, posts):
-        """Upload imgur links to reddit
-        """
+        """Upload imgur links to reddit"""
         logging.info("Posting %d imgur links to /r/%s", len(posts), self.subreddit)
         post_urls = []
         for post in posts:
@@ -82,15 +81,16 @@ class TwitterToReddit:
                 logging.warning("Reddit posting not successful.")
             else:
                 self.database.upsert(
-                    {"post": res, "url": post["link"], "comment": com}, "sid", post["sid"]
+                    {"post": res, "url": post["link"], "comment": com},
+                    "sid",
+                    post["sid"],
                 )
                 post_urls.append(res)
                 logging.info("Reddit Post: %s", res)
         return post_urls
 
     def upload(self) -> list[str]:
-        """Get twitter statuses and upload to reddit
-        """
+        """Get twitter statuses and upload to reddit"""
         logging.info(
             "Starting recent status uploads from @%s to post on /r/%s",
             self.user,
