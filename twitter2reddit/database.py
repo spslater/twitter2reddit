@@ -99,15 +99,15 @@ class Database:
         )
         return self.table.upsert(data, where(key) == val)
 
-    def check_upload(self, key: str, val: object) -> list[int]:
+    def check_upload(self, key: str, val: object) -> dict:
         """Check if documents exist where key has value of val
 
         :param key: key to match value against
         :type key: str
         :param val: value that key should match
         :type val: object
-        :return: list of doc_ids where value matches
-        :rtype: list[int]
+        :return: dict of value matches
+        :rtype: dict
         """
         logging.debug(
             'Searching for docs in table "%s" where "%s" == "%s"',
@@ -115,24 +115,7 @@ class Database:
             key,
             val,
         )
-        return self.table.search(where(key) == val)
-
-    def get_docs(self, key: str, vals: list[object]) -> list[dict]:
-        """Get documents where key equals vals
-
-        :param key: key to match value against
-        :type key: str
-        :param vals: list of values that key can match
-        :type vals: list[object]
-        :return: list of docs where value matches
-        :rtype: list[dict]
-        """
-        docs = []
-        for val in vals:
-            ret = self.table.search(where(key) == val)
-            if ret:
-                docs.extend(ret)
-        return docs
+        return self.table.search(where(key) == val)[0]
 
     def get_number(self) -> int:
         """Get current comic number

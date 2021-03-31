@@ -3,7 +3,7 @@ Upload images to Imgur
 
 Classes:
     ImgurAlbum
-    ImgurImages
+    ImgurImage
 """
 import logging
 from os import getenv
@@ -111,23 +111,17 @@ class ImgurAlbum:
         return client.album_add_images(self.deletehash, img_ids)
 
 
-class ImgurImages:
+class ImgurImage:
     """Imgur Image Interface"""
 
-    #pylint: disable=too-many-instance-attributes
-    def __init__(self, tweet: TweetStatus, number: int, album: ImgurAlbum = None):
-        self.name = tweet.name
-        self.screen_name = tweet.screen_name
-        self.body = tweet.text
-        self.url = tweet.url
-        self.date = tweet.date
-        self.media = tweet.media
+    def __init__(self, status: TweetStatus, album: ImgurAlbum = None):
+        self.status = status
         self.album = album.deletehash if album else None
-        self.number = number
+        self.number = status.number
         self.imgs = None
         logging.debug(
             "Generated new imgur images from tweet %s and putting it in album %s",
-            tweet.sid,
+            self.status.sid,
             self.album,
         )
 
@@ -140,10 +134,10 @@ class ImgurImages:
         :rtype: dict
         """
         logging.debug('Generating imgur image upload config for album "%s"', album)
-        title = f"#{self.number} - {self.body} - @{self.screen_name}"
+        title = f"#{self.status.number} - {self.status.text} - @{self.status.screen_name}"
         desc = (
-            f"{self.name} (@{self.screen_name})\n#{self.number} - "
-            f"{self.body}\n\nCreated: {self.date}\t{self.url}"
+            f"{self.status.name} (@{self.status.screen_name})\n#{self.status.number} - "
+            f"{self.status.text}\n\nCreated: {self.status.date}\t{self.status.url}"
         )
 
         return {
@@ -164,7 +158,7 @@ class ImgurImages:
         if self.imgs is None:
             logging.info('Uploading image to album "%s"', self.album)
             cfg = self.gen_config(album=self.album)
-            ret = client.upload_from_url(self.media, config=cfg, anon=False)
+            ret = client.upload_from_url(self.status.media, config=cfg, anon=False)
             self.imgs = ret["id"]
         else:
             logging.info('Image already uploaded to album "%s" with id "%s"', self.album, self.imgs)
@@ -233,14 +227,12 @@ class ImgurApiClient:
             self.album = album
         return album
 
-    def upload_image(self, status: TweetStatus, number: int) -> int:
+    def upload_image(self, status: TweetStatus) -> int:
         """Upload first image from a tweet
 
         :param status: tweet to get media from
         :type status: TweetStatus
-        :param number: image number in series
-        :type number: int
         :return: imgur image id
         :rtype: int
         """
-        return ImgurImages(status, number, self.album).upload(self.api)
+        return ImgurImage(status, self.album).upload(self.api)
