@@ -7,15 +7,20 @@ Classes:
 """
 import logging
 
+from imgurpython import ImgurClient
+
 
 class ImgurAlbum:
-    """
-    Imgur Album Interface
-    """
+    """Imgur Album Interface"""
 
     # pylint: disable=too-many-arguments
     def __init__(
-        self, deletehash=None, aid=None, title=None, desc=None, privacy="hidden"
+        self,
+        deletehash: str = None,
+        aid: str = None,
+        title: str = None,
+        desc: str = None,
+        privacy: str = "hidden",
     ):
         self.deletehash = deletehash
         self.aid = aid
@@ -36,15 +41,19 @@ class ImgurAlbum:
             )
 
     @staticmethod
-    def form_url(album_id):
+    def form_url(album_id: str) -> str:
         """
         Get album url
         """
         return f"https://imgur.com/a/{album_id}"
 
-    def create(self, client):
-        """
-        Create new album if it doesn't exist
+    def create(self, client: ImgurClient) -> str:
+        """Create new album if it doesn't exist
+
+        :param client: imgur api client
+        :type client: ImgurClient
+        :return: deletehash of album being uploaded to
+        :rtype: str
         """
         if not self.deletehash:
             logging.info("Creating new imgur album with config: %s", self.config)
@@ -73,9 +82,15 @@ class ImgurAlbum:
                 self.url = self.form_url(self.aid)
         return self.deletehash
 
-    def add(self, client, img_ids):
-        """
-        Add images to an album
+    def add(self, client: ImgurClient, img_ids: list[int]) -> dict:
+        """Add images to an album
+
+        :param client: Imgur Client
+        :type client: ImgurClient
+        :param img_ids: list of image ids
+        :type img_ids: list[int]
+        :return: upload response
+        :rtype: dict
         """
         logging.info(
             'Adding %d ids to album with deletehash "%s": %s',
@@ -90,9 +105,7 @@ class ImgurAlbum:
 
 
 class ImgurImages:
-    """
-    Imgur Image Interface
-    """
+    """Imgur Image Interface"""
 
     def __init__(self, tweet, number, album=None):
         self.name = tweet.name
@@ -110,9 +123,15 @@ class ImgurImages:
             self.album,
         )
 
-    def gen_config(self, album, idx=-1):
-        """
-        Generate the upload info for the image
+    def gen_config(self, album: str, idx: int = -1) -> dict:
+        """Generate the upload info for the image
+
+        :param album: album deletehash
+        :type album: str
+        :param idx: index when multiple images are uploaded -1 if single image , defaults to -1
+        :type idx: int, optional
+        :return: upload config info
+        :rtype: dict
         """
         logging.debug('Generating imgur image upload config for album "%s"', album)
         title = None
@@ -141,9 +160,13 @@ class ImgurImages:
             "description": desc,
         }
 
-    def upload(self, client):
-        """
-        Upload image to Imgur
+    def upload(self, client: ImgurClient) -> list[int]:
+        """Upload images to Imgur
+
+        :param client: imgur api client
+        :type client: ImgurClient
+        :return: list of uplaoded image ids
+        :rtype: list[int]
         """
         logging.info('Uploading %d images to album "%s"', len(self.media), self.album)
         for i, entry in enumerate(self.media):

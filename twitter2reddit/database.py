@@ -8,15 +8,13 @@ import logging
 from io import UnsupportedOperation
 from json import dumps
 from os import fsync
-from tinydb import TinyDB, where, JSONStorage, Table
-from tinydb.operations import increment
 
-__all__ = "Database"
+from tinydb import JSONStorage, TinyDB, where
+from tinydb.operations import increment
 
 
 class PrettyJSONStorage(JSONStorage):
-    """
-    Store the TinyDB with pretty json
+    """Store the TinyDB with pretty json
 
     Should be passed into a TinyDB constructor as the `storage` argument
     """
@@ -24,11 +22,15 @@ class PrettyJSONStorage(JSONStorage):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def write(self, data):
-        """
-        Write data to database in a pretty json format
+    def write(self, data: object):
+        """Write data to database in a pretty json format
 
         Indents by 4 spaces and sorts keys
+
+        :param data: data to be saved in json format, needs to be json serializeable
+        :type data: object
+        :return: none
+        :rtype: None
         """
         self._handle.seek(0)
         serialized = dumps(data, indent=4, sort_keys=True, **self.kwargs)
@@ -70,23 +72,23 @@ class Database:
     def __init__(self, filename: str, table: str) -> None:
         self.table_name = table
         self.database = TinyDB(filename, storage=PrettyJSONStorage)
-        self.table = self.database.table(table_name)
+        self.table = self.database.table(self.table_name)
         self.number_id = None
 
     def upsert(self, data: dict, key: str, val: object) -> list[int]:
-        """
-        Upsert data into database
+        """Upsert data into database
 
         Will match all instances where `val` is equal (==) and update all
             of those docs.
 
-        Args:
-            data (dict): data to upsert
-            key (str): key to match value against
-            val (object): value that key should match to update
-
-        Returns:
-            doc_ids (list[int]): list of updated doc_ids
+        :param data: data to upsert
+        :type data: dict
+        :param key: key to match value against
+        :type key: str
+        :param val: value that key should match to update
+        :type val: object
+        :return: list of updated doc_ids
+        :rtype: list[int]
         """
         logging.debug(
             'Upserting into table "%s" where "%s" == "%s" with data: %s',
@@ -98,15 +100,14 @@ class Database:
         return self.table.upsert(data, where(key) == val)
 
     def check_upload(self, key: str, val: object) -> list[int]:
-        """
-        Check if documents exist where key has value of val
+        """Check if documents exist where key has value of val
 
-        Args:
-            key (str): key to match value against
-            val (object): value that key should match
-
-        Returns:
-            doc_ids (list[int]): list of doc_ids where value matches
+        :param key: key to match value against
+        :type key: str
+        :param val: value that key should match
+        :type val: object
+        :return: list of doc_ids where value matches
+        :rtype: list[int]
         """
         logging.debug(
             'Searching for docs in table "%s" where "%s" == "%s"',
@@ -117,15 +118,14 @@ class Database:
         return self.table.search(where(key) == val)
 
     def get_docs(self, key: str, vals: list[object]) -> list[dict]:
-        """
-        Get documents where key equals vals
+        """Get documents where key equals vals
 
-        Args:
-            key (str): key to match value against
-            vals (list[object]): list of values that key can match
-
-        Returns:
-            docs (list[dict]): list of docs where value matches
+        :param key: key to match value against
+        :type key: str
+        :param vals: list of values that key can match
+        :type vals: list[object]
+        :return: list of docs where value matches
+        :rtype: list[dict]
         """
         docs = []
         for val in vals:
@@ -135,14 +135,10 @@ class Database:
         return docs
 
     def get_number(self) -> int:
-        """
-        Get current comic number
+        """Get current comic number
 
-        Args:
-            None
-
-        Returns:
-            number (int): current image number
+        :return: current image number
+        :rtype: int
         """
         if self.number_id is None:
             # pylint: disable=singleton-comparison
@@ -151,14 +147,10 @@ class Database:
         return self.table.get(doc_id=self.number_id)["number"]
 
     def increment_number(self) -> int:
-        """
-        Incrament current comic number by one
+        """Incrament current comic number by one
 
-        Args:
-            None
-
-        Returns:
-            number (int): increased number
+        :return: increased number
+        :rtype: int
         """
         self.table.update(increment("number"), doc_ids=[self.number_id])
         return self.get_number()

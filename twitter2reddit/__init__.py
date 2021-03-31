@@ -1,5 +1,4 @@
-"""
-Twitter2Reddit uploader
+"""Twitter2Reddit uploader
 
 Classes
     Twitter2Reddit

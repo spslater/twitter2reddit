@@ -12,18 +12,20 @@ from praw import Reddit
 from twitter import Api as Twitter
 
 from .database import Database
-from .twitter import TweetStatus
 from .imgur import ImgurAlbum, ImgurImages
 from .reddit import RedditPost
+from .twitter import TweetStatus
 
 
 class TwitterToReddit:
-    """
-    Sending a twitter status to reddit
-    """
+    """Sending a twitter status to reddit"""
 
     def __init__(
-        self, settings, twitter_client=None, imgur_client=None, reddit_client=None
+        self,
+        settings: dict,
+        twitter_client: Twitter = None,
+        imgur_client: ImgurClient = None,
+        reddit_client: Reddit = None,
     ):
         self.twitter = twitter_client if twitter_client else self.get_twitter()
         self.imgur = imgur_client if imgur_client else self.get_imgur()
@@ -48,9 +50,11 @@ class TwitterToReddit:
         self.subreddit = settings["subreddit"]
 
     @staticmethod
-    def get_twitter():
-        """
-        Get a twitter api client
+    def get_twitter() -> Twitter:
+        """Get a twitter api client
+
+        :return: twitter api client
+        :rtype: Twitter
         """
         logging.debug("Generating Twitter Client")
         return Twitter(
@@ -64,9 +68,11 @@ class TwitterToReddit:
         )
 
     @staticmethod
-    def get_imgur():
-        """
-        Get a imgur api client
+    def get_imgur() -> ImgurClient:
+        """Get an imgur api client
+
+        :return: imgur api client
+        :rtype: ImgurClient
         """
         logging.debug("Generating Imgur Client")
         return ImgurClient(
@@ -78,8 +84,10 @@ class TwitterToReddit:
 
     @staticmethod
     def get_reddit():
-        """
-        Get a reddit api client
+        """Get a reddit api client
+
+        :return: reddit api client
+        :rtype: Reddit
         """
         logging.debug("Generating Reddit Client")
         return Reddit(
@@ -91,8 +99,7 @@ class TwitterToReddit:
         )
 
     def single_album(self, tweet):
-        """
-        Create a single imgur album
+        """Create a single imgur album
         """
         logging.debug(
             (
@@ -108,8 +115,7 @@ class TwitterToReddit:
         ).create(self.imgur)
 
     def get_statuses(self):
-        """
-        Get recent twitter statuses
+        """Get recent twitter statuses
         """
         logging.info("Getting recent statuses from Twitter for @%s", self.user)
         statuses = self.twitter.GetUserTimeline(
@@ -127,8 +133,7 @@ class TwitterToReddit:
         return [TweetStatus(s) for s in unchecked], [TweetStatus(s) for s in partial]
 
     def to_imgur(self, statuses):
-        """
-        Upload twitter images to imgur
+        """Upload twitter images to imgur
         """
         logging.info("Uploaded %d tweet images to imgur", len(statuses))
         post_urls = []
@@ -168,15 +173,13 @@ class TwitterToReddit:
         return post_urls
 
     def already_uploaded(self, statuses):
-        """
-        Find statuses that have alread been uploaded to imgur
+        """Find statuses that have alread been uploaded to imgur
         """
         sids = [s.sid for s in statuses]
         return self.database.get_docs("sid", sids)
 
     def to_reddit(self, posts):
-        """
-        Upload imgur links to reddit
+        """Upload imgur links to reddit
         """
         logging.info("Posting %d imgur links to /r/%s", len(posts), self.subreddit)
         post_urls = []
@@ -203,8 +206,7 @@ class TwitterToReddit:
         return post_urls
 
     def upload(self):
-        """
-        Get twitter statuses and upload to reddit
+        """Get twitter statuses and upload to reddit
         """
         logging.info(
             "Starting recent status uploads from @%s to post on /r/%s",

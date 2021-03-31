@@ -8,9 +8,7 @@ import logging
 
 
 class RedditPost:
-    """
-    Reddit Interface
-    """
+    """Reddit Interface"""
 
     # pylint: disable=too-many-arguments
     def __init__(self, subreddit, link, title, post, com):
@@ -21,15 +19,19 @@ class RedditPost:
         self.com = com
         self.ret = None
 
-    def upload(self, doc):
-        """
-        Upload image to reddit
+    def upload(self, doc: dict) -> tuple[str, str]:
+        """Upload image to reddit
+
+        :param doc: contains info for comment
+        :type doc: dict
+        :return: direct url for post and comment
+        :rtype: tuple[str, str]
         """
         comment_text = (
-            "{name} (@{user})\n{body}\n\n{link}\n\n&nbsp;\n"
+            f"{doc['name']} (@{doc['user']})\n{doc['raw']}\n\n{doc['tweet']}\n\n&nbsp;\n"
             "\n^(I am a bot developed by /u/spsseano. My source code can "
             "be found at https://github.com/spslater/twitter2reddit)"
-        ).format(name=doc["name"], user=doc["user"], body=doc["raw"], link=doc["tweet"])
+        )
 
         if not self.post:
             logging.info(
