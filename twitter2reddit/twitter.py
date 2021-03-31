@@ -8,12 +8,12 @@ import logging
 import re
 from datetime import datetime
 from os import getenv
+from typing import NamedTuple
 
 from twitter import Api as Twitter
 from twitter.models import Media, Status
 
-
-class TwitterClient:
+class TwitterApiClient:
     """Twitter API Client"""
 
     def __init__(self):
@@ -54,7 +54,8 @@ class TwitterClient:
         )
         return [TweetStatus(status) for status in statuses]
 
-class TweetStatus:
+
+class TweetStatus(NamedTuple):
     """Access Twitter Status info easily"""
 
     def __init__(self, status: Status):
@@ -64,13 +65,13 @@ class TweetStatus:
         )
         self.screen_name = status.user.screen_name
         self.name = status.user.name
-        self.url = self.tweet_url(self.screen_name, status.id)
-        self.text = self.clean_text(status.text)
-        self.media = [self.media_url(m) for m in status.media]
+        self.url = self._tweet_url(self.screen_name, status.id)
+        self.text = self._clean_text(status.text)
+        self.media = self._media_url(status.media[0])
         logging.debug("Generated TweetStatus for tweet %s", self.sid)
 
     @staticmethod
-    def clean_text(text: str) -> str:
+    def _clean_text(text: str) -> str:
         """Remove the image short url from the text of the status
 
         :param text: body text of tweet
@@ -81,7 +82,7 @@ class TweetStatus:
         return re.sub(r"\s+https://t.co/.*?$", "", text)
 
     @staticmethod
-    def media_url(media: Media) -> str:
+    def _media_url(media: Media) -> str:
         """Get the url for the image in the tweet
 
         :param media: twitter media object with image info
@@ -93,14 +94,14 @@ class TweetStatus:
         return f"{media.media_url_https}{size}"
 
     @staticmethod
-    def tweet_url(screen_name: str, sid: int):
+    def _tweet_url(screen_name: str, sid: int) -> str:
         """Craft a full URL for status
 
-        :param screen_name: [description]
+        :param screen_name: user @ name
         :type screen_name: str
-        :param sid: [description]
+        :param sid: status id
         :type sid: int
-        :return: [description]
+        :return: full url for status
         :rtype: str
         """
         return f"https://twitter.com/{screen_name}/status/{sid}"

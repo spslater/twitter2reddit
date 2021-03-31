@@ -9,63 +9,26 @@ from os import getenv
 
 from imgurpython import ImgurClient
 from praw import Reddit
-from twitter import Api as Twitter
 
 from .database import Database
-from .imgur import ImgurAlbum, ImgurImages
+from .imgur import ImgurApiClient
 from .reddit import RedditPost
-from .twitter import TweetStatus
+from .twitter import TwitterApiClient, TweetStatus
 
 
 class TwitterToReddit:
     """Sending a twitter status to reddit"""
 
-    def __init__(
-        self,
-        settings: dict,
-        twitter_client: Twitter = None,
-        imgur_client: ImgurClient = None,
-        reddit_client: Reddit = None,
-    ):
-        self.twitter = twitter_client if twitter_client else self.get_twitter()
-        self.imgur = imgur_client if imgur_client else self.get_imgur()
-        self.reddit = reddit_client if reddit_client else self.get_reddit()
+    def __init__(self, settings: dict):
+        self.twitter = TwitterApiClient()
+        self.imgur = ImgurApiClient(all_uploads=settings)
+        self.reddit = self.get_reddit()
 
         self.database = Database(filename=settings["database"], table=settings["table"])
         self.number = self.database.get_number()
 
         self.user = settings["user"]
-        self.all_album = ImgurAlbum(
-            deletehash=settings["all_hash"],
-            title=settings["all_name"],
-            desc=settings["all_desc"],
-        )
-        if not settings["all_hash"]:
-            self.all_album.create(self.imgur)
-            logging.info(
-                'No hash given for imgur album. New album created with hash id "%s" and aid "%s"',
-                self.all_album.deletehash,
-                self.all_album.aid,
-            )
         self.subreddit = settings["subreddit"]
-
-    @staticmethod
-    def get_twitter() -> Twitter:
-        """Get a twitter api client
-
-        :return: twitter api client
-        :rtype: Twitter
-        """
-        logging.debug("Generating Twitter Client")
-        return Twitter(
-            consumer_key=getenv("TWITTER_CONSUMER_KEY"),
-            consumer_secret=getenv("TWITTER_CONSUMER_SECRET"),
-            access_token_key=getenv("TWITTER_ACCESS_TOKEN_KEY"),
-            access_token_secret=getenv("TWITTER_ACCESS_TOKEN_SECRET"),
-            request_headers={
-                "Authorization": "Bearer {}".format(getenv("TWITTER_BEARER_TOKEN"))
-            },
-        )
 
     @staticmethod
     def get_imgur() -> ImgurClient:
@@ -98,39 +61,21 @@ class TwitterToReddit:
             user_agent=getenv("REDDIT_USER_AGENT"),
         )
 
-    def single_album(self, tweet):
-        """Create a single imgur album
-        """
-        logging.debug(
-            (
-                'Generating ImgurAlbum for single tweet "%s" from '
-                "@%s with multiple media files"
-            ),
-            tweet.sid,
-            tweet.name,
-        )
-        return ImgurAlbum(
-            title=f"@{tweet.name} - {tweet.text}",
-            desc=f"Images from @{tweet.name} at {tweet.url}",
-        ).create(self.imgur)
-
-    def get_statuses(self):
+    def get_statuses(self) -> tuple[list[TweetStatus], list[TweetStatus]]:
         """Get recent twitter statuses
         """
         logging.info("Getting recent statuses from Twitter for @%s", self.user)
-        statuses = self.twitter.GetUserTimeline(
-            screen_name=self.user, exclude_replies=True, include_rts=False
-        )
+        statuses = self.twitter.get_recent_statuses(user=self.user)
         unchecked = []
         partial = []
         for status in statuses:
             if status.media:
-                doc = self.database.check_upload("sid", status.id)
+                doc = self.database.check_upload("sid", status.sid)
                 if doc and doc[0]["post"] is None:
                     partial.append(status)
                 elif not doc:
                     unchecked.append(status)
-        return [TweetStatus(s) for s in unchecked], [TweetStatus(s) for s in partial]
+        return unchecked, partial
 
     def to_imgur(self, statuses):
         """Upload twitter images to imgur
@@ -144,29 +89,18 @@ class TwitterToReddit:
                 "user": status.screen_name,
                 "tweet": status.url,
                 "raw": status.text,
-                "title": None,
-                "imgs": [],
-                "url": None,
-                "album": None,
-                "aid": None,
-                "post": None,
+                "album": self.imgur.album.deletehash,
+                "aid": self.imgur.album.aid,
                 "number": self.number,
+                "title": None,
+                "imgs": None,
+                "url": None,
+                "post": None,
             }
-            imgs = ImgurImages(status, self.number).upload(self.imgur)
+            imgs = self.imgur.upload_image(status, self.number)
             db_entry["imgs"] = imgs
             db_entry["title"] = f"#{self.number} - {status.text}"
-            url = f"https://i.imgur.com/{imgs[0]}.jpg"
-            self.all_album.add(self.imgur, imgs)
-            if len(status.media) > 1:
-                album = self.single_album(status)
-                album.add(self.imgur, imgs)
-                db_entry["album"] = album.deletehash
-                db_entry["aid"] = album.aid
-                url = album.url(self.imgur)
-            elif len(status.media) == 1:
-                db_entry["album"] = self.all_album.deletehash
-                db_entry["aid"] = self.all_album.aid
-            db_entry["url"] = url
+            db_entry["url"] = f"https://i.imgur.com/{imgs}.jpg"
             self.database.upsert(db_entry, "sid", status.sid)
             post_urls.append(db_entry)
             self.number = self.database.increment_number()
@@ -205,7 +139,7 @@ class TwitterToReddit:
                 logging.info("Reddit Post: %s", res)
         return post_urls
 
-    def upload(self):
+    def upload(self) -> list[str]:
         """Get twitter statuses and upload to reddit
         """
         logging.info(
