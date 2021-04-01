@@ -10,8 +10,6 @@ from os import getenv
 
 from imgurpython import ImgurClient
 
-from .twitter import TweetStatus
-
 
 class ImgurAlbum:
     """Imgur Album Interface"""
@@ -20,17 +18,16 @@ class ImgurAlbum:
     def __init__(
         self,
         deletehash: str = None,
-        aid: str = None,
+        album_id: str = None,
         title: str = None,
-        desc: str = None,
+        description: str = None,
         privacy: str = "hidden",
     ):
         self.deletehash = deletehash
-        self.aid = aid
-        self.url = self._get_url(aid) if aid else None
+        self.album_id = album_id
         self.config = {
             "title": title,
-            "description": desc,
+            "description": description,
             "privacy": privacy,
         }
         if self.deletehash:
@@ -42,17 +39,6 @@ class ImgurAlbum:
                 'Generated ImgurAlbum for album with title "%s", no deletehash provided',
                 self.config["title"],
             )
-
-    @staticmethod
-    def _get_url(album_id: str) -> str:
-        """Get album url
-
-        :param album_id: imgur album id, different from deletehash
-        :type album_id: str
-        :return: url for the album
-        :rtype: str
-        """
-        return f"https://imgur.com/a/{album_id}"
 
     def create(self, client: ImgurClient) -> str:
         """Create new album if it doesn't exist
@@ -66,87 +52,79 @@ class ImgurAlbum:
             logging.info("Creating new imgur album with config: %s", self.config)
             album = client.create_album(self.config)
             self.deletehash = album["deletehash"]
-            self.aid = album["id"]
-            self.url = self._get_url(self.aid)
+            self.album_id = album["id"]
             logging.info(
-                'New album created with deletehash "%s" and aid "%s"',
+                'New album created with deletehash "%s" and album_id "%s"',
                 self.deletehash,
-                self.aid,
+                self.album_id,
             )
-        elif not self.aid:
-            logging.info(
-                "Getting album id and url for album with deletehash: %s",
-                self.deletehash,
-            )
-            self.aid = client.get_album(self.deletehash)
-            self.url = self._get_url(self.aid)
         else:
             logging.info(
                 'Imgur album does not need to be created, it already exists with deletehash "%s"',
                 self.deletehash,
             )
-            if not self.url:
-                self.url = self._get_url(self.aid)
         return self.deletehash
 
-    def add(self, client: ImgurClient, img_ids: list[int]) -> dict:
+    def add(self, client: ImgurClient, image_ids: list[int]) -> dict:
         """Add images to an album
 
         :param client: Imgur Client
         :type client: ImgurClient
-        :param img_ids: list of image ids
-        :type img_ids: list[int]
+        :param image_ids: list of image ids
+        :type image_ids: list[int]
         :return: upload response
         :rtype: dict
         """
         logging.info(
             'Adding %d ids to album with deletehash "%s": %s',
-            len(img_ids),
+            len(image_ids),
             self.deletehash,
-            img_ids,
+            image_ids,
         )
         if not self.deletehash:
             logging.debug("Creating album to add imgs to.")
             self.create(client)
-        return client.album_add_images(self.deletehash, img_ids)
+        return client.album_add_images(self.deletehash, image_ids)
 
 
 class ImgurImage:
     """Imgur Image Interface"""
 
-    def __init__(self, status: TweetStatus, album: ImgurAlbum = None):
+    def __init__(self, status: dict, deletehash: str = None):
         self.status = status
-        self.album = album.deletehash if album else None
-        self.number = status.number
-        self.imgs = None
+        self.deletehash = deletehash
+        self.image_id = None
         logging.debug(
             "Generated new imgur images from tweet %s and putting it in album %s",
-            self.status.sid,
-            self.album,
+            self.status["twitter"]["status_id"],
+            self.deletehash,
         )
 
-    def gen_config(self, album: str) -> dict:
+    def gen_config(self) -> dict:
         """Generate the upload info for the image
 
-        :param album: album deletehash
-        :type album: str
         :return: upload config info
         :rtype: dict
         """
-        logging.debug('Generating imgur image upload config for album "%s"', album)
-        title = (
-            f"#{self.status.number} - {self.status.text} - @{self.status.screen_name}"
+        logging.debug(
+            'Generating imgur image upload config for album "%s"', self.deletehash
         )
-        desc = (
-            f"{self.status.name} (@{self.status.screen_name})\n#{self.status.number} - "
-            f"{self.status.text}\n\nCreated: {self.status.date}\t{self.status.url}"
+        twitter = self.status["twitter"]
+        comic = self.status["comic"]
+
+        title = (
+            f"#{comic['number']} - {twitter['text']} - @{twitter['user_name']}"
+        )
+        description = (
+            f"{twitter['display_name']} (@{twitter['user_name']})\n#{comic['number']} - "
+            f"{twitter['text']}\n\nCreated: {twitter['date']}\t{twitter['tweet']}"
         )
 
         return {
-            "album": album,
+            "album": self.deletehash,
             "name": title,
             "title": title,
-            "description": desc,
+            "description": description,
         }
 
     def upload(self, client: ImgurClient) -> list[int]:
@@ -157,31 +135,35 @@ class ImgurImage:
         :return: list of uplaoded image ids
         :rtype: list[int]
         """
-        if self.imgs is None:
-            logging.info('Uploading image to album "%s"', self.album)
-            cfg = self.gen_config(album=self.album)
-            ret = client.upload_from_url(self.status.media, config=cfg, anon=False)
-            self.imgs = ret["id"]
+        if self.image_id is None:
+            logging.info('Uploading image to album "%s"', self.deletehash)
+            print(self.status["twitter"]["media"], self.gen_config())
+            ret = client.upload_from_url(
+                self.status["twitter"]["media"], config=self.gen_config(), anon=False
+            )
+            self.image_id = ret["id"]
         else:
             logging.info(
                 'Image already uploaded to album "%s" with id "%s"',
-                self.album,
-                self.imgs,
+                self.deletehash,
+                self.image_id,
             )
-        return self.imgs
+        return self.image_id
 
 
 class ImgurApiClient:
     """Imgur Api Client"""
 
-    def __init__(self, all_uploads: dict = None):
+    def __init__(self, settings: dict = None):
         self.api = self.get_imgur()
-        if all_uploads:
-            self.create_album(
-                deletehash=all_uploads.get("all_hash"),
-                name=all_uploads.get("all_name"),
-                title=all_uploads.get("all_title"),
-                url=all_uploads.get("all_url"),
+        self.album = None
+        if settings:
+            self.album = self.create_album(
+                deletehash=settings["imgur"].get("deletehash"),
+                album_id=settings["imgur"].get("album_id"),
+                title=settings["imgur"].get("title"),
+                user_name=settings["twitter"].get("user_name"),
+                user_url=settings["twitter"].get("user_url"),
             )
 
     @staticmethod
@@ -202,22 +184,25 @@ class ImgurApiClient:
     # pylint: disable=too-many-arguments
     def create_album(
         self,
-        name: str,
+        user_name: str,
         title: str,
-        url: str,
+        user_url: str,
         deletehash: str = None,
+        album_id: str = None,
         all_album: bool = False,
     ) -> ImgurAlbum:
         """Create a new Imgur album
 
-        :param name: user name of twitter user
-        :type name: str
+        :param user_name: user name of twitter user
+        :type user_name: str
         :param title: title for image series
         :type title: str
-        :param url: source url
-        :type url: str
+        :param user_url: source url
+        :type user_url: str
         :param deletehash: deletehash of imgur album
         :type deletehash: str
+        :param album_id: album id of imgur album
+        :type album_id: str
         :param all_album: set this album as an album for all uploads
         :type all_album: bool
         :return: newly created album
@@ -225,20 +210,22 @@ class ImgurApiClient:
         """
         album = ImgurAlbum(
             deletehash=deletehash,
-            title=f"@{name} - {title}",
-            desc=f"{title} art by @{name} - {url}",
-        ).create(self.api)
+            album_id=album_id,
+            title=f"@{user_name} - {title}",
+            description=f"{title} art by @{user_name} - {user_url}",
+        )
+        album.create(self.api)
         if all_album:
             logging.debug('Setting "%s" as the all album', album.deletehash)
             self.album = album
         return album
 
-    def upload_image(self, status: TweetStatus) -> int:
+    def upload_image(self, status: dict) -> int:
         """Upload first image from a tweet
 
-        :param status: tweet to get media from
-        :type status: TweetStatus
+        :param status: contains info
+        :type status: dict
         :return: imgur image id
         :rtype: int
         """
-        return ImgurImage(status, self.album).upload(self.api)
+        return ImgurImage(status, self.album.deletehash).upload(self.api)

@@ -32,48 +32,63 @@ class RedditApiClient:
             user_agent=getenv("REDDIT_USER_AGENT"),
         )
 
-    def upload(self, subreddit_name: str, post: dict) -> tuple[str, str]:
+    @staticmethod
+    def _get_comment_text(document: dict) -> str:
+        """Generate the comment to leave on a new submission
+
+        :param document: dictionary containting information about twitter user
+        :type document: dict
+        :return: comment text
+        :rtype: str
+        """
+        display_name = document["twitter"]["display_name"]
+        user_name = document["twitter"]["user_name"]
+        text = document["twitter"]["text"]
+        tweet = document["twitter"]["tweet"]
+
+        return (
+            f"{display_name} (@{user_name})\n{text}\n\n{tweet}"
+            "\n\n&nbsp;\n\n^(I am a bot developed by /u/spsseano. My source code can "
+            "be found at https://github.com/spslater/twitter2reddit)"
+        )
+
+    def upload(self, subreddit_name: str, document: dict) -> tuple[str, str]:
         """Upload a post to reddit
 
         :param subreddit_name: subreddit name to upload to
         :type subreddit_name: str
-        :param post: info for upload
-        :type post: dict
-        :return: post url and comment url
-        :rtype: tuple[str, str]
+        :param document: info for upload
+        :type document: dict
+        :return: updated document with submission url and comment url
+        :rtype: dict
         """
-        link = post["url"]
-        title = post["title"]
-        post_url = post.get("post")
-        comment_url = post.get("com")
+        image_link = document["imgur"]["direct_link"]
+        title = document["comic"]["title"]
+        post_url = document["reddit"].get("post")
+        comment_url = document["reddit"].get("comment")
         subreddit = self.api.subreddit(subreddit_name)
-
-        comment_text = (
-            f"{post['name']} (@{post['user']})\n{post['raw']}\n\n{post['tweet']}\n\n&nbsp;\n"
-            "\n^(I am a bot developed by /u/spsseano. My source code can "
-            "be found at https://github.com/spslater/twitter2reddit)"
-        )
+        comment_text = self._get_comment_text(document)
 
         if not post_url:
             logging.info(
                 'Submitting Reddit link to subreddit "%s" for images "%s"',
                 subreddit_name,
-                link,
+                image_link,
             )
-            submission = subreddit.submit(title=title, url=link)
+            submission = subreddit.submit(title=title, url=image_link)
             submission.disable_inbox_replies()
-            post_url = submission.permalink
+            document["reddit"]["post"] = submission.permalink
             info = submission.reply(comment_text)
-            comment_url = info.permalink
+            document["reddit"]["comment"] = info.permalink
         elif not comment_url:
             logging.info("Already submitted Reddit link leaving comment: %s", post_url)
             submission = self.api.get(post_url)
             info = submission.reply(comment_text)
-            comment_url = info.permalink
+            document["reddit"]["comment"] = info.permalink
         else:
             logging.info(
                 "Already submitted Reddit link and commented: %s - %s",
                 post_url,
                 comment_url,
             )
-        return post_url, comment_url
+        return document

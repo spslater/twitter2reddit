@@ -9,44 +9,52 @@ import logging
 from .database import Database
 from .imgur import ImgurApiClient
 from .reddit import RedditApiClient
-from .twitter import TwitterApiClient, TweetStatus
+from .twitter import TwitterApiClient
 
 
 class TwitterToReddit:
     """Sending a twitter status to reddit"""
 
-    def __init__(self, settings: dict):
+    def __init__(self, env_settings: dict):
+        self.database = Database(
+            filename=env_settings["database"], table=env_settings["table"]
+        )
+        self.settings = self.database.get_settings()
+
         self.twitter = TwitterApiClient()
-        self.imgur = ImgurApiClient(all_uploads=settings)
+        self.imgur = ImgurApiClient(settings=self.settings)
         self.reddit = RedditApiClient()
 
-        self.database = Database(filename=settings["database"], table=settings["table"])
-        self.number = self.database.get_number()
+        self.number = self.settings["number"]
 
-        self.user = settings["user"]
-        self.subreddit = settings["subreddit"]
+        self.user = self.database.get_settings()["twitter"]["user_name"]
+        self.subreddit = self.database.get_settings()["reddit"]["subreddit"]
 
-    def get_statuses(self) -> tuple[list[TweetStatus], list[TweetStatus]]:
+    def get_statuses(self) -> tuple[list[dict], list[dict]]:
         """Get recent twitter statuses"""
         logging.info("Getting recent statuses from Twitter for @%s", self.user)
-        statuses = self.twitter.get_recent_statuses(user=self.user)
+        statuses = self.twitter.get_recent_statuses(user_name=self.user)
         partial = []
         unchecked = []
         for status in statuses:
-            if status.media:
-                db_entry = {
-                    "sid": status.sid,
-                    "name": status.name,
-                    "user": status.screen_name,
-                    "tweet": status.url,
-                    "raw": status.text,
-                }
-                doc = self.database.check_upload("sid", db_entry["sid"])
-                if doc and doc["post"] is None:
-                    partial.append(doc)
+            if status["twitter"]["media"]:
+                document = self.database.check_upload(status["twitter"]["status_id"])
+                if document is None:
+                    status.update({"comic": {}, "imgur": {}, "reddit": {}})
+                    self.database.upsert(status, status["twitter"]["status_id"])
+                    unchecked.append(status)
+                elif document and not document["comic"]:
+                    unchecked.append(status)
+                elif document and (
+                    document["reddit"].get("post") is None
+                    or document["reddit"].get("comment") is None
+                ):
+                    partial.append(document)
                 else:
-                    self.database.upsert(db_entry, "sid", db_entry["sid"])
-                    unchecked.append(db_entry)
+                    logging.debug(
+                        'Status "%d" already uploaded to reddit',
+                        status["twitter"]["status_id"],
+                    )
         return partial, unchecked
 
     def to_imgur(self, statuses):
@@ -56,48 +64,60 @@ class TwitterToReddit:
         for status in statuses:
             status.update(
                 {
-                    "album": self.imgur.album.deletehash,
-                    "aid": self.imgur.album.aid,
-                    "number": self.number,
-                    "title": f"#{self.number} - {status['text']}",
+                    "imgur": {
+                        "deletehash": self.imgur.album.deletehash,
+                        "album_id": self.imgur.album.album_id,
+                    },
+                    "comic": {
+                        "number": self.number,
+                        "title": f"#{self.number} - {status['twitter']['text']}",
+                    },
                 }
             )
-            imgs = self.imgur.upload_image(status)
-            status["imgs"] = imgs
-            status["url"] = f"https://i.imgur.com/{imgs}.jpg"
-            self.database.upsert(status, "sid", status["sid"])
+            image_id = self.imgur.upload_image(status)
+            status["imgur"]["image_id"] = image_id
+            status["imgur"]["direct_link"] = f"https://i.imgur.com/{image_id}.jpg"
+            self.database.upsert(status, status["twitter"]["status_id"])
             update_statuses.append(status)
             self.number = self.database.increment_number()
         return update_statuses
 
-    def to_reddit(self, posts):
-        """Upload imgur links to reddit"""
-        logging.info("Posting %d imgur links to /r/%s", len(posts), self.subreddit)
-        post_urls = []
-        for post in posts:
-            res, com = self.reddit.upload(self.subreddit, post)
+    def to_reddit(self, statuses: list[dict]) -> list[str]:
+        """Upload imgur links to reddit
 
-            if res is None and com is None:
+        :param statuses: list of statuses to upload to reddit
+        :type statuses: dict
+        :return: list of reddit submission urls
+        :rtype: list[str]
+        """
+        logging.info("Posting %d imgur links to /r/%s", len(statuses), self.subreddit)
+        posts = []
+        for status in statuses:
+            status = self.reddit.upload(self.subreddit, status)
+            post = status["reddit"]["post"]
+            comment = status["reddit"]["comment"]
+
+            if post is None and comment is None:
                 logging.warning("Reddit posting not successful.")
             else:
-                self.database.upsert(
-                    {"post": res, "url": post["link"], "comment": com},
-                    "sid",
-                    post["sid"],
-                )
-                post_urls.append(res)
-                logging.info("Reddit Post: %s", res)
-        return post_urls
+                self.database.upsert(status, status["twitter"]["status_id"])
+                posts.append(post)
+                logging.info("Reddit Post: %s", post)
+        return posts
 
     def upload(self) -> list[str]:
-        """Get twitter statuses and upload to reddit"""
+        """Get twitter statuses and upload to reddit
+
+        :return: list of reddit submission urls
+        :rtype: list[str]
+        """
         logging.info(
             "Starting recent status uploads from @%s to post on /r/%s",
             self.user,
             self.subreddit,
         )
         uploaded, unchecked = self.get_statuses()
-        if len(unchecked) == 0 and len(uploaded) == 0:
+        if not unchecked and not uploaded:
             logging.info("No new posts need to be made")
             return None
         uploaded.extend(self.to_imgur(unchecked))

@@ -73,61 +73,54 @@ class Database:
         self.table_name = table
         self.database = TinyDB(filename, storage=PrettyJSONStorage)
         self.table = self.database.table(self.table_name)
+        self.meta = self.database.table("meta")
         self.number_id = None
 
-    def upsert(self, data: dict, key: str, val: object) -> list[int]:
-        """Upsert data into database
+    def get_settings(self) -> dict:
+        """Get meta settings for the table
 
-        Will match all instances where `val` is equal (==) and update all
-            of those docs.
+        :return: meta dict
+        :rtype: dict
+        """
+        if not self.number_id:
+            results = self.meta.search(where("table") == self.table_name)
+            self.number_id = results[0].doc_id
+        settings = self.meta.get(doc_id=self.number_id)
+        return settings
+
+    def upsert(self, data: dict, status_id: str) -> list[int]:
+        """Upsert data into database
 
         :param data: data to upsert
         :type data: dict
-        :param key: key to match value against
-        :type key: str
-        :param val: value that key should match to update
-        :type val: object
+        :param status_id: status_id to match against
+        :type status_id: str
         :return: list of updated doc_ids
         :rtype: list[int]
         """
         logging.debug(
-            'Upserting into table "%s" where "%s" == "%s" with data: %s',
+            'Upserting into table "%s" for status_id "%s" with data: %s',
             self.table_name,
-            key,
-            val,
+            status_id,
             data,
         )
-        return self.table.upsert(data, where(key) == val)
+        return self.table.upsert(data, where("twitter").status_id == status_id)
 
-    def check_upload(self, key: str, val: object) -> dict:
+    def check_upload(self, status_id: str) -> dict:
         """Check if documents exist where key has value of val
 
-        :param key: key to match value against
-        :type key: str
-        :param val: value that key should match
-        :type val: object
+        :param status_id: twitter status id to check if uploaded already
+        :type status_id: str
         :return: dict of value matches
         :rtype: dict
         """
         logging.debug(
-            'Searching for docs in table "%s" where "%s" == "%s"',
+            'Searching for docs in table "%s" for status_id "%s"',
             self.table_name,
-            key,
-            val,
+            status_id,
         )
-        return self.table.search(where(key) == val)[0]
-
-    def get_number(self) -> int:
-        """Get current comic number
-
-        :return: current image number
-        :rtype: int
-        """
-        if self.number_id is None:
-            # pylint: disable=singleton-comparison
-            results = self.table.search(where("number_counter") == True)
-            self.number_id = results[0].doc_id
-        return self.table.get(doc_id=self.number_id)["number"]
+        result = self.table.search(where("twitter").status_id == status_id)
+        return result[0] if result else None
 
     def increment_number(self) -> int:
         """Incrament current comic number by one
@@ -135,5 +128,5 @@ class Database:
         :return: increased number
         :rtype: int
         """
-        self.table.update(increment("number"), doc_ids=[self.number_id])
-        return self.get_number()
+        self.meta.update(increment("number"), doc_ids=[self.number_id])
+        return self.get_settings()["number"]
