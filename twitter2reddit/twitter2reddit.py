@@ -15,15 +15,28 @@ from .twitter import TwitterApiClient
 class TwitterToReddit:
     """Sending a twitter status to reddit"""
 
+    # pylint: disable=too-many-instance-attributes
     def __init__(self, env_settings: dict):
         self.database = Database(
-            filename=env_settings["database"], table=env_settings["table"]
+            filename=env_settings["database"],
+            table=env_settings["table"],
+            first_time=env_settings.get("first_time"),
         )
         self.settings = self.database.get_settings()
 
         self.twitter = TwitterApiClient()
         self.imgur = ImgurApiClient(settings=self.settings)
         self.reddit = RedditApiClient()
+
+        if self.settings["imgur"]["deletehash"] is None:
+            self.settings = self.database.update_meta(
+                {
+                    "imgur": {
+                        "deletehash": self.imgur.album.deletehash,
+                        "album_id": self.imgur.album.album_id,
+                    }
+                }
+            )
 
         self.number = self.settings["number"]
 

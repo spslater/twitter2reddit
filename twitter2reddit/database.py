@@ -69,12 +69,119 @@ class Database:
         increment_number: increase image number by 1
     """
 
-    def __init__(self, filename: str, table: str) -> None:
+    def __init__(self, filename: str, table: str, first_time: dict = None) -> None:
         self.table_name = table
         self.database = TinyDB(filename, storage=PrettyJSONStorage)
         self.table = self.database.table(self.table_name)
         self.meta = self.database.table("meta")
+        if first_time:
+            first_time = self._check_first_time(first_time, table)
+            self.meta.upsert(first_time, where("table") == first_time["table"])
         self.number_id = None
+
+    @staticmethod
+    def _check_first_time(first_time: dict, table: str) -> dict:
+        """Verify first_time settings are valid
+
+        :param first_time: dictionary of first_time setup values
+        :type first_time: dict
+        :param table: table name to store info
+        :param type: str
+        :return: validated settings
+        :rtype: dict
+        """
+        if "table" not in first_time:
+            first_time["table"] = table
+        elif first_time["table"] != table:
+            raise KeyError(
+                (
+                    f"Table does not match settings table name: "
+                    f"fist_time ({first_time['table']}) vs settings ({table})"
+                )
+            )
+
+        if "number" not in first_time:
+            first_time["number"] = 1
+
+        if "imgur" not in first_time:
+            album_id = first_time.get("album_id")
+            deletehash = first_time.get("deletehash")
+            title = first_time["title"]
+            description = (
+                first_time["description"]
+                if "description" in first_time
+                else (
+                    f"{title} art by @{first_time['twitter']['user_name']} "
+                    f"- https://twitter.com/{first_time['twitter']['user_name']}"
+                )
+            )
+
+            first_time["imgur"] = {
+                "album_id": album_id,
+                "deletehash": deletehash,
+                "description": description,
+                "title": title,
+            }
+        first_time.pop("album_id", None)
+        first_time.pop("deletehash", None)
+        first_time.pop("title", None)
+        first_time.pop("description", None)
+
+        if "user_name" in first_time and "twitter" not in first_time:
+            first_time["twitter"] = {
+                "user_name": first_time["user_name"],
+                "user_url": first_time["user_url"]
+                if "user_url" in first_time
+                else f"https://twitter.com/{first_time['user_name']}",
+            }
+        elif (
+            "user_name" in first_time
+            and "user_name" in first_time["twitter"]
+            and first_time["user_name"] != first_time["twitter"]["user_name"]
+        ):
+            raise KeyError(
+                (
+                    f"Duplicate user names listed at root and in twitter: "
+                    f"{first_time['user_name']} vs {first_time['twitter']['user_name']}"
+                )
+            )
+        first_time.pop("user_name", None)
+        first_time.pop("user_url", None)
+
+        if "subreddit" in first_time and "reddit" not in first_time:
+            first_time["reddit"] = {"subreddit": first_time["subreddit"]}
+        elif (
+            "subreddit" in first_time
+            and "reddit" in first_time
+            and "subreddit" not in first_time["reddit"]
+        ):
+            first_time["reddit"] = {"subreddit": first_time["subreddit"]}
+        elif (
+            "subreddit" in first_time
+            and "reddit" in first_time
+            and "subreddit" in first_time["reddit"]
+        ):
+            if first_time["subreddit"] != first_time["reddit"]["subreddit"]:
+                raise KeyError(
+                    (
+                        f"Duplicate subreddits listed at root and in reddit: "
+                        f"{first_time['subreddit']} vs {first_time['reddit']['subreddit']}"
+                    )
+                )
+        first_time.pop("subreddit", None)
+
+        return first_time
+
+    def update_meta(self, update: dict) -> dict:
+        """Update meta table info
+
+        :param update: dictionary with updated data
+        :type update: dict
+        :return: full settings dictionary with updated values
+        :rtype: dict
+        """
+        self.meta.update(update, where("table") == self.table_name)
+        return self.get_settings()
 
     def get_settings(self) -> dict:
         """Get meta settings for the table

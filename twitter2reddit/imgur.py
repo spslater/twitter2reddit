@@ -112,9 +112,7 @@ class ImgurImage:
         twitter = self.status["twitter"]
         comic = self.status["comic"]
 
-        title = (
-            f"#{comic['number']} - {twitter['text']} - @{twitter['user_name']}"
-        )
+        title = f"#{comic['number']} - {twitter['text']} - @{twitter['user_name']}"
         description = (
             f"{twitter['display_name']} (@{twitter['user_name']})\n#{comic['number']} - "
             f"{twitter['text']}\n\nCreated: {twitter['date']}\t{twitter['tweet']}"
@@ -158,13 +156,7 @@ class ImgurApiClient:
         self.api = self.get_imgur()
         self.album = None
         if settings:
-            self.album = self.create_album(
-                deletehash=settings["imgur"].get("deletehash"),
-                album_id=settings["imgur"].get("album_id"),
-                title=settings["imgur"].get("title"),
-                user_name=settings["twitter"].get("user_name"),
-                user_url=settings["twitter"].get("user_url"),
-            )
+            self.album = self.create_album(settings=settings)
 
     @staticmethod
     def get_imgur() -> ImgurClient:
@@ -181,38 +173,36 @@ class ImgurApiClient:
             refresh_token=getenv("IMGUR_REFRESH_TOKEN"),
         )
 
-    # pylint: disable=too-many-arguments
     def create_album(
         self,
-        user_name: str,
-        title: str,
-        user_url: str,
-        deletehash: str = None,
-        album_id: str = None,
+        settings: dict,
         all_album: bool = False,
     ) -> ImgurAlbum:
         """Create a new Imgur album
 
-        :param user_name: user name of twitter user
-        :type user_name: str
-        :param title: title for image series
-        :type title: str
-        :param user_url: source url
-        :type user_url: str
-        :param deletehash: deletehash of imgur album
-        :type deletehash: str
-        :param album_id: album id of imgur album
-        :type album_id: str
+        :param settings: settings dictionary with values in it
+        :type settings: dict
         :param all_album: set this album as an album for all uploads
         :type all_album: bool
         :return: newly created album
         :rtype: ImgurAlbum
         """
+        deletehash = settings["imgur"].get("deletehash")
+        album_id = settings["imgur"].get("album_id")
+        title = settings["imgur"].get("title")
+        description = settings["imgur"].get("description")
+        user_name = settings["twitter"].get("user_name")
+        user_url = settings["twitter"].get("user_url")
+
         album = ImgurAlbum(
             deletehash=deletehash,
             album_id=album_id,
             title=f"@{user_name} - {title}",
-            description=f"{title} art by @{user_name} - {user_url}",
+            description=(
+                description
+                if description
+                else f"{title} art by @{user_name} - {user_url}"
+            ),
         )
         album.create(self.api)
         if all_album:
