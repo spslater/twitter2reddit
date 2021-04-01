@@ -79,4 +79,4 @@ class TwitterApiClient:
         statuses = self.api.GetUserTimeline(
             screen_name=user_name, count=recent, exclude_replies=True, include_rts=False
         )
-        return [self._convert_status(status) for status in statuses if status.media]
+        return reversed([self._convert_status(status) for status in statuses if status.media])
