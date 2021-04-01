@@ -1,26 +1,61 @@
 # Twitter 2 Reddit
 Install package requirements from `requirements.txt`
 
-Can then run with `python3 twitter2reddit.py settings.yml`
+Can then run with `python3 main.py settings.yml`
 
 ## Yaml Settings File
-The all_* attributes in the doc are where all media from user will be added. If there is multiple media
-in the tweet then it'll also get added to it's own album.
-
+Required for every run:
 ``` yaml
-user: twitter user handle
-all_hash: imgur album deletehash
-all_aid: imgur album id (in url)
-all_name: name of imgur album
-all_desc: description of twitter album
-subreddit: subreddit to post to
 database: database to save tweet and post info in
 table: table in said database to look for data
 ```
 
+First time running for a table the following needs to be added
+
+Verbose Structure:
+``` yaml
+first_time:
+  imgur:
+    album_id: album id, if left empty will be filled in by newly created album
+    deletehash: album deletehash, if left empty will be filled in by newly created album
+    description: album description, optional, defaults to "<title> art by @<user_name> - <user_url>"
+    title: album title
+  number: 1
+  reddit:
+    subreddit: subreddit name, no /r/
+  table: art table name, needs to match `table` in top level, optional, defaults to top level table name
+  twitter:
+    user_name: "@ user name"
+    user_url: user url, optional defaults to "https://twitter.com/<user_name>"
+```
+Flat Structure:
+``` yaml
+first_time:
+  album_id: album id, if left empty will be filled in by newly created album
+  deletehash: album deletehash, if left empty will be filled in by newly created album
+  description: album description, optional, defaults to "<title> art by @<user_name> - <user_url>"
+  title: album title
+  number: 1
+  subreddit: subreddit name, no /r/
+  table: art table name, needs to match `table` in top level, optional, defaults to top level table name
+  user_name: "@ user name"
+  user_url: user url, optional defaults to "https://twitter.com/<user_name>"
+```
+
+### Example
+Min Overall Structure Example:
+``` yaml
+database: littlenuns.db
+table: littlenuns
+first_time:
+  title: Little Nuns
+  number: 1
+  subreddit: LittleNuns
+  user_name: "hyxpk"
+```
+
 ## .env File
 Need to have a .env file or these values in the environment to create the clients:
-
 ```
 TWITTER_CONSUMER_KEY=
 TWITTER_CONSUMER_SECRET=
