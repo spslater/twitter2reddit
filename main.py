@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 from twitter2reddit import TwitterToReddit
 
 
-def main():
+def main(arguments: list[str] = None) -> None:
     """
     Process from command line
 
@@ -23,30 +23,35 @@ def main():
     load_dotenv()
 
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
+    parser.add_argument("--log", dest="logfile", help="log file", metavar="LOGFILE")
     parser.add_argument(
-        "-l", "--log", dest="logfile", help="Log file.", metavar="LOGFILE"
+        "--mode",
+        dest="mode",
+        help="level to log at",
+        metavar="MODE",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        default="INFO",
     )
     parser.add_argument(
-        "-q",
         "--quite",
         dest="quite",
         default=False,
         action="store_true",
-        help="Quite output",
+        help="quite output",
     )
     parser.add_argument(
-        "filename", help="File to load archive info from.", metavar="YAMLFILE"
+        "filename", help="file to load archive info from", metavar="YAMLFILE"
     )
     parser.add_argument(
         "-d",
         "--database",
         dest="database",
         default="database.db",
-        help="tinydb file.",
+        help="tinydb file",
         metavar="DB",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(arguments)
     handler_list = (
         [logging.StreamHandler(stdout), logging.FileHandler(args.logfile)]
         if args.logfile
@@ -56,7 +61,7 @@ def main():
     logging.basicConfig(
         format="%(asctime)s\t[%(levelname)s]\t{%(module)s}\t%(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
-        level=logging.DEBUG,
+        level=logging.INFO,
         handlers=handler_list,
     )
 
@@ -68,8 +73,10 @@ def main():
     posts = t2r.upload()
     while posts is not None and len(posts) == 0 and attemps <= 60:
         logging.warning(
-            "No posts were made, sleeping for 1 min to try again. \
-                Will attempt %d more times before exiting.",
+            (
+                "No posts were made, sleeping for 1 min to try again. "
+                "Will attempt %d more times before exiting."
+            ),
             60 - attemps,
         )
         sleep(60)
