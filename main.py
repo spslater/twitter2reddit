@@ -4,12 +4,12 @@ Upload images from twitter user to a subreddit
 This file is commandline only.
 """
 import logging
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from sys import stdout
 from time import sleep
-from yaml import load, Loader
 
 from dotenv import load_dotenv
+from yaml import Loader, load
 
 from twitter2reddit import TwitterToReddit
 
