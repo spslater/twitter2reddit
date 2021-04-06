@@ -50,6 +50,15 @@ def main(arguments: list[str] = None) -> None:
         help="tinydb file",
         metavar="DB",
     )
+    parser.add_argument(
+        "-a",
+        "--attempts",
+        dest="attempts",
+        default=75,
+        type=int,
+        help="number of times to check for new comic if none found",
+        metavar="NUM",
+    )
 
     args = parser.parse_args(arguments)
     handler_list = (
@@ -68,20 +77,20 @@ def main(arguments: list[str] = None) -> None:
     with open(args.filename, "r") as fp:
         settings = load(fp, Loader=Loader)
 
-    attemps = 1
+    attempts = 1
     t2r = TwitterToReddit(settings)
     posts = t2r.upload()
-    while posts is not None and len(posts) == 0 and attemps <= 60:
+    while posts is not None and len(posts) == 0 and attempts <= args.attempts:
         logging.warning(
             (
                 "No posts were made, sleeping for 1 min to try again. "
                 "Will attempt %d more times before exiting."
             ),
-            60 - attemps,
+            args.attempts - attempts,
         )
         sleep(60)
         posts = t2r.upload()
-        attemps += 1
+        attempts += 1
 
     if posts is not None and len(posts) == 0:
         logging.error("No posts made successfully")
