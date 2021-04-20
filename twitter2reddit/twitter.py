@@ -37,6 +37,7 @@ class TwitterApiClient:
             request_headers={
                 "Authorization": f"Bearer {getenv('TWITTER_BEARER_TOKEN')}"
             },
+            timeout=int(getenv("TWITTER_TIMEOUT", "360")),
         )
 
     @staticmethod
