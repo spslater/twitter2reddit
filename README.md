@@ -9,6 +9,8 @@ Required for every run:
 database: database to save tweet and post info in
 table: table in said database to look for data
 ```
+Optional attribute: `only_recent` boolean value for if only the most recent tweet should be uploaded
+to reddit or if all missing ones should be, defaults to `False` if no value given.
 
 First time running for a table the following needs to be added
 

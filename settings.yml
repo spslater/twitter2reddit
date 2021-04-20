@@ -7,3 +7,4 @@ all_url: 'https://twitter.com/hyxpk'
 subreddit: 'LittleNuns'
 database: 'database.db'
 table: 'littlenuns'
+only_recent: true

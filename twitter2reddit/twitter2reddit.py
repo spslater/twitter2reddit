@@ -42,6 +42,7 @@ class TwitterToReddit:
 
         self.user = self.database.get_settings()["twitter"]["user_name"]
         self.subreddit = self.database.get_settings()["reddit"]["subreddit"]
+        self.only_recent = env_settings.get("only_recent", False)
 
     def get_statuses(self) -> tuple[list[dict], list[dict]]:
         """Get recent twitter statuses"""
@@ -134,6 +135,8 @@ class TwitterToReddit:
             logging.info("No new posts need to be made")
             return None
         uploaded.extend(self.to_imgur(unchecked))
+        if self.only_recent:
+            uploaded = uploaded[-1:]
         posts = self.to_reddit(uploaded)
         logging.info(
             "Successfully made %d new posts to /r/%s from @%s",
