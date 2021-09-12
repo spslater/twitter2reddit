@@ -48,6 +48,8 @@ class TwitterToReddit:
         """Get recent twitter statuses"""
         logging.info("Getting recent statuses from Twitter for @%s", self.user)
         statuses = self.twitter.get_recent_statuses(user_name=self.user)
+        if self.only_recent:
+            statuses = list(statuses)[-1:]
         partial = []
         unchecked = []
         for status in statuses:
