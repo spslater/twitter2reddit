@@ -58,7 +58,7 @@ first_time:
 
 ## .env File
 Need to have a .env file or these values in the environment to create the clients:
-```
+``` ini
 TWITTER_CONSUMER_KEY=
 TWITTER_CONSUMER_SECRET=
 TWITTER_ACCESS_TOKEN_KEY=
@@ -76,4 +76,15 @@ REDDIT_CLIENT_SECRET=
 REDDIT_USERNAME=
 REDDIT_PASSWORD=
 REDDIT_USER_AGENT=
+```
+
+## Schedule File
+Schedule can be used for non regular posts. Currently needs to be manually updated.
+Example file:
+``` yaml
+2023:
+  1: [1,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30]
+  2: [1,3,5,7,9,11,12,14,16,18,19,21,23,25,27,29]
+2024:
+  3: [1,10,20,30]
 ```

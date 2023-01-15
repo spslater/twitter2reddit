@@ -5,6 +5,7 @@ This file is commandline only.
 """
 import logging
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
+from datetime import datetime
 from sys import stdout
 from time import sleep
 
@@ -12,6 +13,17 @@ from dotenv import load_dotenv
 from yaml import Loader, load
 
 from twitter2reddit import TwitterToReddit
+
+logger = logging.getLogger(__name__)
+
+def post_today(schedule):
+    now = datetime.now()
+
+    with open(schedule, "r") as fp:
+        schd = load(fp, Loader=Loader)
+
+    days = schd.get(now.year, {}).get(now.month, [])
+    return now.day in days
 
 
 def main(arguments: list[str] = None) -> None:
@@ -51,6 +63,13 @@ def main(arguments: list[str] = None) -> None:
         metavar="DB",
     )
     parser.add_argument(
+        "-s",
+        "--schedule",
+        dest="schedule",
+        help="schedule tinydb file",
+        metavar="SCHD",
+    )
+    parser.add_argument(
         "-a",
         "--attempts",
         dest="attempts",
@@ -82,6 +101,10 @@ def main(arguments: list[str] = None) -> None:
         handlers=handler_list,
     )
 
+    if args.schedule is None or not post_today(args.schedule):
+        logger.info("no posts should be made today")
+        return
+
     with open(args.filename, "r") as fp:
         settings = load(fp, Loader=Loader)
 
@@ -95,7 +118,7 @@ def main(arguments: list[str] = None) -> None:
         delay += 1
 
     while posts is not None and len(posts) == 0 and attempts <= args.attempts:
-        logging.warning(
+        logger.warning(
             (
                 "No posts were made, sleeping for 1 min to try again. "
                 "Will attempt %d more times before exiting."
@@ -107,7 +130,7 @@ def main(arguments: list[str] = None) -> None:
         attempts += 1
 
     if posts is not None and len(posts) == 0:
-        logging.error("No posts made successfully")
+        logger.error("No posts made successfully")
 
 
 if __name__ == "__main__":

@@ -1,3 +1,4 @@
 database: 'database.db'
 table: 'littlenuns'
 only_recent: true
+schedule: 'schedule.db'
