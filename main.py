@@ -59,6 +59,14 @@ def main(arguments: list[str] = None) -> None:
         help="number of times to check for new comic if none found",
         metavar="NUM",
     )
+    parser.add_argument(
+        "--delay",
+        dest="delay",
+        default=60,
+        type=int,
+        help="number of times to check for a new upload if it gets posted later than normal",
+        metavar="NUM",
+    )
 
     args = parser.parse_args(arguments)
     handler_list = (
@@ -78,8 +86,14 @@ def main(arguments: list[str] = None) -> None:
         settings = load(fp, Loader=Loader)
 
     attempts = 1
+    delay = 1
     t2r = TwitterToReddit(settings)
-    posts = t2r.upload()
+    posts = None
+    while posts is None and delay <= args.delay:
+        posts = t2r.upload()
+        sleep(60)
+        delay += 1
+
     while posts is not None and len(posts) == 0 and attempts <= args.attempts:
         logging.warning(
             (
